@@ -1,5 +1,5 @@
-// Package atproto authenticates workshop attendees with atproto OAuth and
-// returns only identities present in the operator-maintained roster.
+// Package atproto authenticates atproto identities with atproto OAuth and can
+// optionally restrict identities to an operator-maintained roster.
 package atproto
 
 import (
@@ -43,6 +43,7 @@ type Config struct {
 	Workshop               string `json:"workshop"`
 	PublicBaseURL          string `json:"publicBaseURL"`
 	RosterFile             string `json:"rosterFile"`
+	AllowUnlistedAccounts  bool   `json:"allowUnlistedAccounts"`
 	StateDB                string `json:"stateDB"`
 	StateEncryptionKeyFile string `json:"stateEncryptionKeyFile"`
 	ClientKeyFile          string `json:"clientKeyFile"`
@@ -220,7 +221,7 @@ var loginPage = template.Must(template.New("atproto-login").Parse(`<!doctype htm
 <form method="post" action="login">
 <input type="hidden" name="tx" value="{{.Transaction}}">
 <input type="hidden" name="csrf" value="{{.CSRF}}">
-<label>Enrolled handle or DID <input name="account" required autocomplete="username"></label>
+	<label>{{.AccountPrompt}} <input name="account" required autocomplete="username"></label>
 <button type="submit">Continue to atproto</button></form></html>`))
 
 func (c *atprotoConnector) loginForm(w http.ResponseWriter, r *http.Request) {
@@ -248,7 +249,15 @@ func (c *atprotoConnector) loginForm(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	if err := loginPage.Execute(w, struct{ Transaction, CSRF string }{txID, csrf}); err != nil {
+	accountPrompt := "Enrolled handle or DID"
+	if c.config.AllowUnlistedAccounts {
+		accountPrompt = "Atproto handle"
+	}
+	if err := loginPage.Execute(w, struct {
+		Transaction   string
+		CSRF          string
+		AccountPrompt string
+	}{txID, csrf, accountPrompt}); err != nil {
 		c.logger.Error("render atproto login form", "err", err)
 	}
 }
@@ -270,13 +279,16 @@ func (c *atprotoConnector) beginLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "login transaction expired or already used", http.StatusGone)
 		return
 	}
-	entry, err := c.rosterEntry(account)
+	entry, err := c.accountEntry(r.Context(), account)
 	if err != nil {
 		c.store.finishTransaction(txID, "denied", transaction{})
-		http.Error(w, "account is not on the workshop roster", http.StatusForbidden)
+		http.Error(w, "atproto account is not allowed", http.StatusForbidden)
 		return
 	}
-	if err := c.verifyRosterIdentity(r.Context(), entry); err != nil {
+	if !c.config.AllowUnlistedAccounts {
+		err = c.verifyRosterIdentity(r.Context(), entry)
+	}
+	if err != nil {
 		c.store.finishTransaction(txID, "denied", transaction{})
 		http.Error(w, "account identity could not be verified", http.StatusForbidden)
 		return
@@ -334,13 +346,16 @@ func (c *atprotoConnector) oauthCallback(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "atproto account or scope mismatch", http.StatusForbidden)
 		return
 	}
-	current, err := c.rosterEntry(tx.ExpectedDID)
-	if err != nil || current.DID != tx.ExpectedDID || !strings.EqualFold(current.Handle, tx.ExpectedHandle) {
-		c.store.finishTransaction(tx.ID, "denied", transaction{})
-		http.Error(w, "atproto roster entry changed during login", http.StatusForbidden)
-		return
+	var current rosterEntry
+	if c.config.AllowUnlistedAccounts {
+		current, err = c.openAccountEntry(r.Context(), tx.ExpectedHandle)
+	} else {
+		current, err = c.rosterEntry(tx.ExpectedDID)
+		if err == nil {
+			err = c.verifyRosterIdentity(r.Context(), current)
+		}
 	}
-	if err := c.verifyRosterIdentity(r.Context(), current); err != nil {
+	if err != nil || current.DID != tx.ExpectedDID || !strings.EqualFold(current.Handle, tx.ExpectedHandle) {
 		c.store.finishTransaction(tx.ID, "denied", transaction{})
 		http.Error(w, "atproto handle is no longer verified", http.StatusForbidden)
 		return
@@ -363,6 +378,48 @@ func (c *atprotoConnector) oauthCallback(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	http.Redirect(w, r, completion.String(), http.StatusSeeOther)
+}
+
+func (c *atprotoConnector) accountEntry(ctx context.Context, account string) (rosterEntry, error) {
+	if c.config.AllowUnlistedAccounts {
+		return c.openAccountEntry(ctx, account)
+	}
+	return c.rosterEntry(account)
+}
+
+// openAccountEntry resolves a submitted handle through Indigo and binds it to
+// the currently verified DID. The caller repeats this resolution after OAuth,
+// so a handle change or transfer during login fails closed.
+func (c *atprotoConnector) openAccountEntry(ctx context.Context, account string) (rosterEntry, error) {
+	parsed, err := syntax.ParseAtIdentifier(strings.ToLower(strings.TrimSpace(account)))
+	if err != nil || !parsed.IsHandle() {
+		return rosterEntry{}, fmt.Errorf("open atproto login requires a handle")
+	}
+	handle := parsed.String()
+	if err := c.client.Dir.Purge(ctx, parsed); err != nil {
+		return rosterEntry{}, fmt.Errorf("purge handle cache: %w", err)
+	}
+	verified, err := c.client.Dir.Lookup(ctx, parsed)
+	if err != nil {
+		return rosterEntry{}, fmt.Errorf("resolve and verify atproto handle: %w", err)
+	}
+	return openAccountEntry(handle, verified.DID.String(), verified.Handle.String())
+}
+
+func openAccountEntry(requestedHandle, didValue, handleValue string) (rosterEntry, error) {
+	requested, err := syntax.ParseAtIdentifier(strings.ToLower(strings.TrimSpace(requestedHandle)))
+	if err != nil || !requested.IsHandle() {
+		return rosterEntry{}, fmt.Errorf("open atproto login requires a handle")
+	}
+	did, err := syntax.ParseAtIdentifier(didValue)
+	if err != nil || !did.IsDID() {
+		return rosterEntry{}, fmt.Errorf("atproto account did is invalid")
+	}
+	handle, err := syntax.ParseAtIdentifier(handleValue)
+	if err != nil || !handle.IsHandle() || handle.String() != strings.ToLower(handleValue) || !strings.EqualFold(requested.String(), handle.String()) {
+		return rosterEntry{}, fmt.Errorf("atproto handle is not verified")
+	}
+	return rosterEntry{DID: did.String(), Handle: handle.String(), Enabled: true}, nil
 }
 
 func (c *atprotoConnector) rosterEntry(account string) (rosterEntry, error) {
