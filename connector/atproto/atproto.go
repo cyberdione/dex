@@ -25,9 +25,9 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/ghodss/yaml"
 	"github.com/google/uuid"
+	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/dexidp/dex/connector"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 const (
