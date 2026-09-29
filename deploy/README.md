@@ -13,3 +13,8 @@ The runtime secret is a JSON object with `db_password`, `atproto_client_key`,
 `atproto_state_encryption_key_base64` (32 decoded bytes), and `roster_yaml`.
 The stack creates the Secrets Manager secret metadata only. Operators populate
 its value after creating a least-privilege PostgreSQL role in RDS.
+
+The workflow publishes only when the repository variable
+`DEX_ECR_PUBLISH_ENABLED` is exactly `true`. Leave it unset until branch
+protection is active on `ewindisch/atproto` and the matching AWS publisher role
+has been provisioned. Pull-request builds never receive AWS credentials.

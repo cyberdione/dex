@@ -61,7 +61,7 @@ jobs:
           severity: CRITICAL,HIGH
 
   publish:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/ewindisch/atproto'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/ewindisch/atproto' && vars.DEX_ECR_PUBLISH_ENABLED == 'true'
     needs: unit
     runs-on: ubuntu-latest
     permissions:
