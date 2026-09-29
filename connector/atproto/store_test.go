@@ -151,6 +151,31 @@ func TestLoginURLKeepsDexCallbackStateSeparate(t *testing.T) {
 	}
 }
 
+func TestOpenAccountEntryBindsVerifiedHandleAndDID(t *testing.T) {
+	entry, err := openAccountEntry("Alice.Example", "did:web:alice.example", "alice.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if entry.DID != "did:web:alice.example" || entry.Handle != "alice.example" || !entry.Enabled {
+		t.Fatalf("unexpected open account identity: %#v", entry)
+	}
+
+	tests := []struct {
+		name, requested, did, handle string
+	}{
+		{name: "handle mismatch", requested: "alice.example", did: "did:plc:z72i7hdynmk6r22z27h6tvur", handle: "other.example"},
+		{name: "invalid DID", requested: "alice.example", did: "not-a-did", handle: "alice.example"},
+		{name: "DID input is not accepted in open mode", requested: "did:plc:z72i7hdynmk6r22z27h6tvur", did: "did:plc:z72i7hdynmk6r22z27h6tvur", handle: "alice.example"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := openAccountEntry(test.requested, test.did, test.handle); err == nil {
+				t.Fatal("accepted an invalid open account identity")
+			}
+		})
+	}
+}
+
 func TestEncryptedStateAndSingleUseDexCompletion(t *testing.T) {
 	store := testStore(t)
 	id := uuid.NewString()
