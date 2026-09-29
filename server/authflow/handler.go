@@ -3,9 +3,12 @@ package authflow
 import (
 	"log/slog"
 	"net/http"
+	"net/url"
+	"path"
 	"strings"
 	"time"
 
+	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
@@ -14,6 +17,7 @@ import (
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
+	"github.com/gorilla/mux"
 )
 
 // Handler serves the interactive login flow (connector selection, connector and
@@ -65,6 +69,37 @@ func (h *Handler) Mount(m router.Mux) {
 		h.handleConnectorCallback(w, r)
 	})
 	m.HandleFunc("/callback/{connector}", h.handleConnectorCallback)
+	m.HandleFunc("/connectors/{connector}/{endpoint:.*}", h.handleConnectorHTTP)
+}
+
+// handleConnectorHTTP mounts the optional, connector-owned routes without
+// weakening Dex's own callback dispatch or exposing a generic proxy.
+func (h *Handler) handleConnectorHTTP(w http.ResponseWriter, r *http.Request) {
+	connectorID, err := url.PathUnescape(mux.Vars(r)["connector"])
+	if err != nil || connectorID == "" {
+		http.NotFound(w, r)
+		return
+	}
+	conn, err := h.Connectors.Get(r.Context(), connectorID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	handler, ok := conn.Connector.(connector.HTTPHandlerConnector)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	request := r.Clone(r.Context())
+	request.URL = new(url.URL)
+	*request.URL = *r.URL
+	prefix := path.Join("/", h.IssuerURL.Path, "connectors", connectorID)
+	if !strings.HasPrefix(request.URL.Path, prefix+"/") {
+		http.NotFound(w, r)
+		return
+	}
+	request.URL.Path = strings.TrimPrefix(request.URL.Path, prefix)
+	handler.ConnectorHTTPHandler().ServeHTTP(w, request)
 }
 
 // stripRemoteHeaders drops the X-Remote-* request headers the authproxy

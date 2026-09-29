@@ -1,0 +1,525 @@
+// Package atproto authenticates workshop attendees with atproto OAuth and
+// returns only identities present in the operator-maintained roster.
+package atproto
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"html/template"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"os"
+	"path"
+	"strings"
+	"time"
+
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/dexidp/dex/connector"
+	"github.com/ghodss/yaml"
+	"github.com/google/uuid"
+	_ "github.com/mattn/go-sqlite3"
+)
+
+const (
+	maxFormBytes          = 4096
+	maxRosterBytes        = 1 << 20
+	defaultTransactionTTL = 5 * time.Minute
+	defaultCompletionTTL  = 30 * time.Second
+)
+
+// Config is the atproto connector configuration. PublicBaseURL is the
+// externally reachable Dex-prefixed connector route base.
+type Config struct {
+	Workshop               string `json:"workshop"`
+	PublicBaseURL          string `json:"publicBaseURL"`
+	RosterFile             string `json:"rosterFile"`
+	StateDB                string `json:"stateDB"`
+	StateEncryptionKeyFile string `json:"stateEncryptionKeyFile"`
+	ClientKeyFile          string `json:"clientKeyFile"`
+	ClientKeyID            string `json:"clientKeyID"`
+	TransactionTTL         string `json:"transactionTTL"`
+	CompletionTTL          string `json:"completionTTL"`
+}
+
+// Open implements connectors.ConnectorConfig.
+func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
+	base, err := url.Parse(c.PublicBaseURL)
+	if err != nil || base.Scheme != "https" || base.Host == "" || base.User != nil || base.RawQuery != "" || base.Fragment != "" || base.RawPath != "" {
+		return nil, fmt.Errorf("atproto publicBaseURL must be an absolute HTTPS URL without credentials, query, or fragment")
+	}
+	if id == "" || base.Path != path.Join(path.Dir(path.Dir(base.Path)), "connectors", id) {
+		return nil, fmt.Errorf("atproto publicBaseURL path must end in /connectors/%s", id)
+	}
+	if c.Workshop == "" || c.RosterFile == "" || c.StateDB == "" || c.StateEncryptionKeyFile == "" || c.ClientKeyFile == "" || c.ClientKeyID == "" {
+		return nil, fmt.Errorf("atproto workshop, rosterFile, stateDB, stateEncryptionKeyFile, clientKeyFile, and clientKeyID are required")
+	}
+	transactionTTL, err := parseDuration(c.TransactionTTL, defaultTransactionTTL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid atproto transactionTTL: %w", err)
+	}
+	completionTTL, err := parseDuration(c.CompletionTTL, defaultCompletionTTL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid atproto completionTTL: %w", err)
+	}
+	if transactionTTL < time.Minute || transactionTTL > 15*time.Minute || completionTTL < 5*time.Second || completionTTL > time.Minute {
+		return nil, fmt.Errorf("atproto transactionTTL must be 1m..15m and completionTTL 5s..1m")
+	}
+
+	key, err := os.ReadFile(c.StateEncryptionKeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("read atproto state encryption key: %w", err)
+	}
+	keyInfo, err := os.Stat(c.StateEncryptionKeyFile)
+	if err != nil || !keyInfo.Mode().IsRegular() || keyInfo.Mode().Perm()&0077 != 0 || len(key) != 32 {
+		return nil, fmt.Errorf("atproto state encryption key must be a 32-byte regular file with no group/other permissions")
+	}
+	privateKeyText, err := os.ReadFile(c.ClientKeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("read atproto client key: %w", err)
+	}
+	clientKeyInfo, err := os.Stat(c.ClientKeyFile)
+	if err != nil || !clientKeyInfo.Mode().IsRegular() || clientKeyInfo.Mode().Perm()&0077 != 0 {
+		return nil, fmt.Errorf("atproto client key must be a regular file with no group/other permissions")
+	}
+	privateKey, err := atcrypto.ParsePrivateMultibase(strings.TrimSpace(string(privateKeyText)))
+	if err != nil {
+		return nil, fmt.Errorf("parse atproto client key: %w", err)
+	}
+
+	store, err := openStore(c.StateDB, key, transactionTTL, completionTTL)
+	if err != nil {
+		return nil, err
+	}
+	clientConfig := oauth.NewPublicConfig(c.PublicBaseURL+"/client-metadata.json", c.PublicBaseURL+"/oauth/callback", []string{"atproto"})
+	if err := clientConfig.SetClientSecret(privateKey, c.ClientKeyID); err != nil {
+		store.Close()
+		return nil, fmt.Errorf("configure atproto confidential client: %w", err)
+	}
+	client := oauth.NewClientApp(&clientConfig, store)
+	client.Client.Transport = requireDPoPNonce{next: client.Client.Transport}
+	conn := &atprotoConnector{id: id, config: *c, base: base, store: store, client: client, transactionTTL: transactionTTL, logger: logger.With(slog.String("connector", id))}
+	return conn, nil
+}
+
+type atprotoConnector struct {
+	id             string
+	config         Config
+	base           *url.URL
+	store          *stateStore
+	client         *oauth.ClientApp
+	transactionTTL time.Duration
+	logger         *slog.Logger
+}
+
+var _ connector.CallbackConnector = (*atprotoConnector)(nil)
+var _ connector.HTTPHandlerConnector = (*atprotoConnector)(nil)
+var _ connector.CallbackCompletionHandler = (*atprotoConnector)(nil)
+
+func (c *atprotoConnector) LoginURL(scopes connector.Scopes, callbackURL, dexState string) (string, []byte, error) {
+	if scopes.OfflineAccess {
+		return "", nil, fmt.Errorf("atproto connector does not support offline_access")
+	}
+	if dexState == "" {
+		return "", nil, fmt.Errorf("missing Dex authorization state")
+	}
+	callback, err := url.Parse(callbackURL)
+	expectedCallbackPath := path.Join(path.Dir(path.Dir(c.base.Path)), "callback")
+	if err != nil || callback.Scheme != "https" || callback.Host != c.base.Host || callback.Path != expectedCallbackPath || callback.User != nil || callback.RawQuery != "" || callback.Fragment != "" {
+		return "", nil, fmt.Errorf("invalid Dex callback URL")
+	}
+	callback.Path = path.Join(callback.Path, c.id)
+	txID := uuid.NewString()
+	state := transaction{ID: txID, DexState: dexState, DexCallback: callback.String(), Status: "created", ExpiresAt: time.Now().Add(c.transactionTTL)}
+	if err := c.store.createTransaction(context.Background(), state); err != nil {
+		return "", nil, fmt.Errorf("create atproto transaction: %w", err)
+	}
+	loginURL := *c.base
+	loginURL.Path = path.Join(loginURL.Path, "login")
+	query := loginURL.Query()
+	query.Set("tx", txID)
+	loginURL.RawQuery = query.Encode()
+	return loginURL.String(), []byte(txID), nil
+}
+
+func (c *atprotoConnector) HandleCallback(scopes connector.Scopes, connData []byte, r *http.Request) (connector.Identity, error) {
+	if scopes.OfflineAccess {
+		return connector.Identity{}, fmt.Errorf("atproto connector does not support offline_access")
+	}
+	txID := string(connData)
+	if !validID(txID) || len(r.URL.Query()["state"]) != 1 || len(r.URL.Query()["ticket"]) != 1 {
+		return connector.Identity{}, fmt.Errorf("invalid atproto completion")
+	}
+	state := r.URL.Query().Get("state")
+	cookie, err := r.Cookie(cookieName(txID))
+	if err != nil {
+		return connector.Identity{}, fmt.Errorf("missing atproto browser binding")
+	}
+	identity, err := c.store.consumeCompletion(txID, state, r.URL.Query().Get("ticket"), cookie.Value)
+	if err != nil {
+		return connector.Identity{}, err
+	}
+	return identity, nil
+}
+
+func (c *atprotoConnector) CallbackCompleted(w http.ResponseWriter, r *http.Request, connData []byte) {
+	txID := string(connData)
+	if !validID(txID) {
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: cookieName(txID), Value: "", Path: cookiePath(c.base.Path), Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: -1})
+}
+
+// ConnectorHTTPHandler serves only the finite protocol routes owned by this
+// connector. Dex's auth endpoints and callback remain separately dispatched.
+func (c *atprotoConnector) ConnectorHTTPHandler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /client-metadata.json", c.clientMetadata)
+	mux.HandleFunc("GET /jwks.json", c.jwks)
+	mux.HandleFunc("GET /login", c.loginForm)
+	mux.HandleFunc("POST /login", c.beginLogin)
+	mux.HandleFunc("GET /oauth/callback", c.oauthCallback)
+	return mux
+}
+
+func (c *atprotoConnector) clientMetadata(w http.ResponseWriter, r *http.Request) {
+	metadata := c.client.Config.ClientMetadata()
+	metadata.GrantTypes = []string{"authorization_code"}
+	metadata.JWKSURI = stringPtr(c.config.PublicBaseURL + "/jwks.json")
+	metadata.ClientName = stringPtr("Workshop SSH access")
+	metadata.ClientURI = stringPtr(c.base.Scheme + "://" + c.base.Host + "/")
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	if err := json.NewEncoder(w).Encode(metadata); err != nil {
+		c.logger.Error("encode atproto client metadata", "err", err)
+	}
+}
+
+func (c *atprotoConnector) jwks(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	if err := json.NewEncoder(w).Encode(c.client.Config.PublicJWKS()); err != nil {
+		c.logger.Error("encode atproto client JWKS", "err", err)
+	}
+}
+
+var loginPage = template.Must(template.New("atproto-login").Parse(`<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Workshop sign in</title>
+<h1>Sign in with atproto</h1>
+<form method="post" action="login">
+<input type="hidden" name="tx" value="{{.Transaction}}">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<label>Enrolled handle or DID <input name="account" required autocomplete="username"></label>
+<button type="submit">Continue to atproto</button></form></html>`))
+
+func (c *atprotoConnector) loginForm(w http.ResponseWriter, r *http.Request) {
+	if len(r.URL.Query()["tx"]) != 1 || !validID(r.URL.Query().Get("tx")) {
+		http.Error(w, "invalid login transaction", http.StatusBadRequest)
+		return
+	}
+	txID := r.URL.Query().Get("tx")
+	tx, err := c.store.getTransaction(txID)
+	if err != nil || tx.Status != "created" || time.Now().After(tx.ExpiresAt) {
+		http.Error(w, "login transaction expired", http.StatusGone)
+		return
+	}
+	csrf, err := randomToken()
+	if err != nil {
+		http.Error(w, "could not start login", http.StatusInternalServerError)
+		return
+	}
+	browser, err := randomToken()
+	if err != nil || c.store.bindBrowser(txID, browser, csrf) != nil {
+		http.Error(w, "login transaction already used", http.StatusConflict)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: cookieName(txID), Value: browser, Path: cookiePath(c.base.Path), Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: int(c.transactionTTL.Seconds())})
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	if err := loginPage.Execute(w, struct{ Transaction, CSRF string }{txID, csrf}); err != nil {
+		c.logger.Error("render atproto login form", "err", err)
+	}
+}
+
+func (c *atprotoConnector) beginLogin(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxFormBytes)
+	if err := r.ParseForm(); err != nil || len(r.PostForm["tx"]) != 1 || len(r.PostForm["csrf"]) != 1 || len(r.PostForm["account"]) != 1 {
+		http.Error(w, "invalid login form", http.StatusBadRequest)
+		return
+	}
+	txID, account := r.PostForm.Get("tx"), strings.TrimSpace(r.PostForm.Get("account"))
+	cookie, err := r.Cookie(cookieName(txID))
+	if err != nil || !validID(txID) {
+		http.Error(w, "login transaction expired", http.StatusGone)
+		return
+	}
+	tx, err := c.store.beginTransaction(txID, cookie.Value, r.PostForm.Get("csrf"))
+	if err != nil || time.Now().After(tx.ExpiresAt) {
+		http.Error(w, "login transaction expired or already used", http.StatusGone)
+		return
+	}
+	entry, err := c.rosterEntry(account)
+	if err != nil {
+		c.store.finishTransaction(txID, "denied", transaction{})
+		http.Error(w, "account is not on the workshop roster", http.StatusForbidden)
+		return
+	}
+	if err := c.verifyRosterIdentity(r.Context(), entry); err != nil {
+		c.store.finishTransaction(txID, "denied", transaction{})
+		http.Error(w, "account identity could not be verified", http.StatusForbidden)
+		return
+	}
+	ctx, saveOutcome := withLoginTransaction(r.Context(), txID)
+	redirectURL, err := c.client.StartAuthFlow(ctx, entry.Handle)
+	if err == nil && saveOutcome.err != nil {
+		err = saveOutcome.err
+	}
+	if err != nil {
+		c.store.finishTransaction(txID, "failed", transaction{})
+		c.logger.WarnContext(r.Context(), "start atproto authorization", "err", err)
+		http.Error(w, "atproto authorization could not be started", http.StatusBadGateway)
+		return
+	}
+	if err := c.store.markOAuthStarted(txID, entry); err != nil {
+		http.Error(w, "atproto authorization could not be stored", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+}
+
+func (c *atprotoConnector) oauthCallback(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	if len(query["state"]) != 1 || len(query["iss"]) > 1 || len(query["code"]) > 1 {
+		http.Error(w, "invalid atproto callback", http.StatusBadRequest)
+		return
+	}
+	state := query.Get("state")
+	tx, err := c.store.previewOAuthRequest(state)
+	if err != nil {
+		http.Error(w, "atproto login expired or already used", http.StatusGone)
+		return
+	}
+	cookie, err := r.Cookie(cookieName(tx.ID))
+	if err != nil || !sameSecret(tx.BrowserHash, cookie.Value) {
+		http.Error(w, "atproto browser binding failed", http.StatusForbidden)
+		return
+	}
+	claimed, err := c.store.claimOAuthRequest(state)
+	if err != nil || claimed.ID != tx.ID {
+		http.Error(w, "atproto login expired or already used", http.StatusGone)
+		return
+	}
+	tx = claimed
+	session, err := c.client.ProcessCallback(r.Context(), query)
+	if err != nil {
+		c.store.finishTransaction(tx.ID, "failed", transaction{})
+		c.logger.WarnContext(r.Context(), "complete atproto authorization", "err", err)
+		http.Error(w, "atproto authorization failed", http.StatusBadGateway)
+		return
+	}
+	if session.AccountDID.String() != tx.ExpectedDID || !contains(session.Scopes, "atproto") {
+		c.store.finishTransaction(tx.ID, "denied", transaction{})
+		http.Error(w, "atproto account or scope mismatch", http.StatusForbidden)
+		return
+	}
+	current, err := c.rosterEntry(tx.ExpectedDID)
+	if err != nil || current.DID != tx.ExpectedDID || !strings.EqualFold(current.Handle, tx.ExpectedHandle) {
+		c.store.finishTransaction(tx.ID, "denied", transaction{})
+		http.Error(w, "atproto roster entry changed during login", http.StatusForbidden)
+		return
+	}
+	if err := c.verifyRosterIdentity(r.Context(), current); err != nil {
+		c.store.finishTransaction(tx.ID, "denied", transaction{})
+		http.Error(w, "atproto handle is no longer verified", http.StatusForbidden)
+		return
+	}
+	identity := connector.Identity{UserID: tx.ExpectedDID, Username: tx.ExpectedHandle, PreferredUsername: tx.ExpectedHandle, Email: "", EmailVerified: false, Groups: []string{"workshop-attendee"}}
+	ticket, err := randomToken()
+	if err != nil || c.store.finishTransaction(tx.ID, "complete", transaction{TicketHash: digest(ticket), Identity: identity}) != nil {
+		http.Error(w, "atproto completion could not be stored", http.StatusInternalServerError)
+		return
+	}
+	completion, err := url.Parse(tx.DexCallback)
+	if err != nil {
+		http.Error(w, "invalid Dex callback", http.StatusInternalServerError)
+		return
+	}
+	params := completion.Query()
+	params.Set("state", tx.DexState)
+	params.Set("ticket", ticket)
+	completion.RawQuery = params.Encode()
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	http.Redirect(w, r, completion.String(), http.StatusSeeOther)
+}
+
+func (c *atprotoConnector) rosterEntry(account string) (rosterEntry, error) {
+	var roster rosterFile
+	b, err := os.ReadFile(c.config.RosterFile)
+	if err != nil || len(b) > maxRosterBytes || yaml.Unmarshal(b, &roster) != nil || roster.Workshop != c.config.Workshop || roster.Version < 1 {
+		return rosterEntry{}, fmt.Errorf("could not read valid roster")
+	}
+	atid, err := syntax.ParseAtIdentifier(account)
+	if err != nil {
+		return rosterEntry{}, err
+	}
+	var found *rosterEntry
+	dids := make(map[string]struct{})
+	handles := make(map[string]struct{})
+	for i := range roster.Attendees {
+		entry := &roster.Attendees[i]
+		if !entry.Enabled {
+			continue
+		}
+		end, err := time.Parse(time.RFC3339, entry.ValidUntil)
+		if err != nil {
+			return rosterEntry{}, fmt.Errorf("invalid active roster expiry")
+		}
+		if !end.After(time.Now()) {
+			continue
+		}
+		did, err := syntax.ParseAtIdentifier(entry.DID)
+		if err != nil || !did.IsDID() || !strings.HasPrefix(entry.DID, "did:plc:") {
+			return rosterEntry{}, fmt.Errorf("invalid active roster DID")
+		}
+		handle, err := syntax.ParseAtIdentifier(entry.Handle)
+		if err != nil || !handle.IsHandle() || entry.Handle != strings.ToLower(entry.Handle) {
+			return rosterEntry{}, fmt.Errorf("invalid active roster handle")
+		}
+		if _, exists := dids[entry.DID]; exists {
+			return rosterEntry{}, fmt.Errorf("duplicate active roster DID")
+		}
+		normalizedHandle := strings.ToLower(entry.Handle)
+		if _, exists := handles[normalizedHandle]; exists {
+			return rosterEntry{}, fmt.Errorf("duplicate active roster handle")
+		}
+		dids[entry.DID] = struct{}{}
+		handles[normalizedHandle] = struct{}{}
+		if (atid.IsDID() && atid.String() != entry.DID) || (atid.IsHandle() && !strings.EqualFold(atid.String(), entry.Handle)) {
+			continue
+		}
+		if found != nil {
+			return rosterEntry{}, fmt.Errorf("ambiguous roster entry")
+		}
+		found = entry
+	}
+	if found == nil {
+		return rosterEntry{}, fmt.Errorf("roster miss")
+	}
+	return *found, nil
+}
+
+func (c *atprotoConnector) verifyRosterIdentity(ctx context.Context, entry rosterEntry) error {
+	did, err := syntax.ParseAtIdentifier(entry.DID)
+	if err != nil || !did.IsDID() || !strings.HasPrefix(entry.DID, "did:plc:") {
+		return fmt.Errorf("roster DID must be a valid did:plc identifier")
+	}
+	handle, err := syntax.ParseAtIdentifier(entry.Handle)
+	if err != nil || !handle.IsHandle() {
+		return fmt.Errorf("invalid roster handle")
+	}
+	if err := c.client.Dir.Purge(ctx, handle); err != nil {
+		return fmt.Errorf("purge handle cache: %w", err)
+	}
+	verified, err := c.client.Dir.Lookup(ctx, handle)
+	if err != nil {
+		return fmt.Errorf("resolve and verify roster handle: %w", err)
+	}
+	if verified.DID.String() != entry.DID || !strings.EqualFold(verified.Handle.String(), entry.Handle) {
+		return fmt.Errorf("roster handle and DID no longer match")
+	}
+	return nil
+}
+
+func contains(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func stringPtr(value string) *string { return &value }
+
+func parseDuration(value string, fallback time.Duration) (time.Duration, error) {
+	if value == "" {
+		return fallback, nil
+	}
+	return time.ParseDuration(value)
+}
+
+func validID(id string) bool {
+	if len(id) != 36 {
+		return false
+	}
+	_, err := uuid.Parse(id)
+	return err == nil
+}
+
+func cookieName(txID string) string { return "atproto_tx_" + strings.ReplaceAll(txID, "-", "_") }
+
+func cookiePath(basePath string) string {
+	parent := path.Dir(path.Dir(basePath))
+	if parent == "." || parent == "/" {
+		return "/"
+	}
+	return parent
+}
+
+func randomToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func digest(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
+}
+
+func sameSecret(expectedHash, value string) bool {
+	got, err := hex.DecodeString(digest(value))
+	want, wantErr := hex.DecodeString(expectedHash)
+	return err == nil && wantErr == nil && subtle.ConstantTimeCompare(got, want) == 1
+}
+
+type nonceTransport struct{ next http.RoundTripper }
+
+func (t nonceTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	response, err := t.next.RoundTrip(request)
+	if err != nil {
+		return nil, err
+	}
+	if request.Header.Get("DPoP") != "" && response.Header.Get("DPoP-Nonce") == "" {
+		response.Body.Close()
+		return nil, fmt.Errorf("atproto OAuth response omitted the required DPoP-Nonce header")
+	}
+	return response, nil
+}
+
+// requireDPoPNonce is the typed transport wrapper used by Config.Open.
+type requireDPoPNonce struct{ next http.RoundTripper }
+
+func (t requireDPoPNonce) RoundTrip(request *http.Request) (*http.Response, error) {
+	next := t.next
+	if next == nil {
+		next = http.DefaultTransport
+	}
+	return nonceTransport{next: next}.RoundTrip(request)
+}
+
+// Keep imports and the interface contract checked as the Indigo API evolves.
+var _ oauth.ClientAuthStore = (*stateStore)(nil)
+var _ interface{ Close() error } = (*stateStore)(nil)

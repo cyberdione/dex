@@ -82,6 +82,20 @@ type CallbackConnector interface {
 	HandleCallback(s Scopes, connData []byte, r *http.Request) (identity Identity, err error)
 }
 
+// HTTPHandlerConnector is an optional capability for callback connectors that
+// need connector-owned browser routes, such as hosted OAuth metadata and an
+// upstream provider callback. Dex mounts these routes below
+// /connectors/{connectorID}/ and still owns its standard /callback routes.
+type HTTPHandlerConnector interface {
+	ConnectorHTTPHandler() http.Handler
+}
+
+// CallbackCompletionHandler can clear connector-local browser state after Dex
+// accepts a connector callback and finalizes the identity.
+type CallbackCompletionHandler interface {
+	CallbackCompleted(w http.ResponseWriter, r *http.Request, connData []byte)
+}
+
 // SAMLConnector represents SAML connectors which implement the HTTP POST binding.
 //
 //	RelayState is handled by the server.
