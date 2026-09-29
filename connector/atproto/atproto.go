@@ -23,10 +23,11 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/dexidp/dex/connector"
 	"github.com/ghodss/yaml"
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/dexidp/dex/connector"
 )
 
 const (
@@ -79,7 +80,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		return nil, fmt.Errorf("read atproto state encryption key: %w", err)
 	}
 	keyInfo, err := os.Stat(c.StateEncryptionKeyFile)
-	if err != nil || !keyInfo.Mode().IsRegular() || keyInfo.Mode().Perm()&0077 != 0 || len(key) != 32 {
+	if err != nil || !keyInfo.Mode().IsRegular() || keyInfo.Mode().Perm()&0o077 != 0 || len(key) != 32 {
 		return nil, fmt.Errorf("atproto state encryption key must be a 32-byte regular file with no group/other permissions")
 	}
 	privateKeyText, err := os.ReadFile(c.ClientKeyFile)
@@ -87,7 +88,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		return nil, fmt.Errorf("read atproto client key: %w", err)
 	}
 	clientKeyInfo, err := os.Stat(c.ClientKeyFile)
-	if err != nil || !clientKeyInfo.Mode().IsRegular() || clientKeyInfo.Mode().Perm()&0077 != 0 {
+	if err != nil || !clientKeyInfo.Mode().IsRegular() || clientKeyInfo.Mode().Perm()&0o077 != 0 {
 		return nil, fmt.Errorf("atproto client key must be a regular file with no group/other permissions")
 	}
 	privateKey, err := atcrypto.ParsePrivateMultibase(strings.TrimSpace(string(privateKeyText)))
@@ -120,9 +121,11 @@ type atprotoConnector struct {
 	logger         *slog.Logger
 }
 
-var _ connector.CallbackConnector = (*atprotoConnector)(nil)
-var _ connector.HTTPHandlerConnector = (*atprotoConnector)(nil)
-var _ connector.CallbackCompletionHandler = (*atprotoConnector)(nil)
+var (
+	_ connector.CallbackConnector         = (*atprotoConnector)(nil)
+	_ connector.HTTPHandlerConnector      = (*atprotoConnector)(nil)
+	_ connector.CallbackCompletionHandler = (*atprotoConnector)(nil)
+)
 
 func (c *atprotoConnector) LoginURL(scopes connector.Scopes, callbackURL, dexState string) (string, []byte, error) {
 	if scopes.OfflineAccess {
@@ -521,5 +524,7 @@ func (t requireDPoPNonce) RoundTrip(request *http.Request) (*http.Response, erro
 }
 
 // Keep imports and the interface contract checked as the Indigo API evolves.
-var _ oauth.ClientAuthStore = (*stateStore)(nil)
-var _ interface{ Close() error } = (*stateStore)(nil)
+var (
+	_ oauth.ClientAuthStore      = (*stateStore)(nil)
+	_ interface{ Close() error } = (*stateStore)(nil)
+)

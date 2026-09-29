@@ -1,8 +1,8 @@
-ARG BASE_IMAGE=alpine
+ARG BASE_IMAGE=docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
 
-FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.9.0@sha256:c64defb9ed5a91eacb37f96ccc3d4cd72521c4bd18d5442905b95e2226b0e707 AS xx
+FROM --platform=$BUILDPLATFORM docker.io/tonistiigi/xx:1.9.0@sha256:c64defb9ed5a91eacb37f96ccc3d4cd72521c4bd18d5442905b95e2226b0e707 AS xx
 
-FROM --platform=$BUILDPLATFORM golang:1.27.1-alpine3.24@sha256:e9bbdf282b51ac8b34c46e5f31d2d56e7bad60366c35f08d2f295b921b13388b AS builder
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.1-alpine3.24@sha256:e9bbdf282b51ac8b34c46e5f31d2d56e7bad60366c35f08d2f295b921b13388b AS builder
 
 COPY --from=xx / /
 
@@ -35,13 +35,13 @@ RUN make release-binary
 
 RUN xx-verify /go/bin/dex && xx-verify /go/bin/docker-entrypoint
 
-FROM alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS stager
+FROM docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS stager
 
 RUN mkdir -p /var/dex
 RUN mkdir -p /etc/dex
 COPY config.docker.yaml /etc/dex/
 
-FROM alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS gomplate
+FROM docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS gomplate
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -54,14 +54,14 @@ RUN wget -O /usr/local/bin/gomplate \
     && chmod +x /usr/local/bin/gomplate
 
 # For Dependabot to detect base image versions
-FROM alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS alpine
+FROM docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS alpine
 
 FROM alpine AS user-setup
 RUN addgroup -g 1001 -S dex && adduser -u 1001 -S -G dex -D -H -s /sbin/nologin dex
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3 AS distroless
 
-FROM $BASE_IMAGE
+FROM $BASE_IMAGE AS runtime
 
 # Dex connectors, such as GitHub and Google logins require root certificates.
 # Proper installations should manage those certificates, but it's a bad user
@@ -91,3 +91,27 @@ USER dex:dex
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint"]
 CMD ["dex", "serve", "/etc/dex/config.docker.yaml"]
+
+# Production image used by Cyberdione's Metal stack. Keep upstream's default
+# image unchanged; this target adds only the runtime needed for dynamic-secret
+# resolution and writes those secrets to the in-memory runtime directory.
+FROM docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS cyberdione
+
+RUN apk add --no-cache python3 py3-boto3
+RUN addgroup -g 1001 -S dex && adduser -u 1001 -S -G dex -D -H -s /sbin/nologin dex
+COPY --from=runtime /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=runtime --chown=1001:1001 /var/dex /var/dex
+COPY --from=runtime --chown=1001:1001 /etc/dex /etc/dex
+COPY --from=runtime /usr/local/bin/dex /usr/local/bin/dex
+COPY --from=runtime /usr/local/bin/docker-entrypoint /usr/local/bin/docker-entrypoint
+COPY --from=runtime /srv/dex/web /srv/dex/web
+COPY deploy/asm-exec.py /usr/local/bin/asm-exec
+COPY deploy/secret-entrypoint.py /usr/local/bin/secret-entrypoint
+COPY deploy/secret-pipe-writer.py /usr/local/bin/secret-pipe-writer
+RUN chmod 0555 /usr/local/bin/asm-exec /usr/local/bin/secret-entrypoint /usr/local/bin/secret-pipe-writer && \
+    python3 -m py_compile /usr/local/bin/asm-exec /usr/local/bin/secret-entrypoint /usr/local/bin/secret-pipe-writer && \
+    rm -rf /usr/local/bin/__pycache__
+
+USER dex:dex
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint"]
+CMD ["dex", "serve", "/etc/dex/config.yaml"]

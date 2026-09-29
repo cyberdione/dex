@@ -15,6 +15,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"github.com/dexidp/dex/connector"
 )
 
@@ -55,9 +56,11 @@ type stateStore struct {
 	completionTTL  time.Duration
 }
 
-type loginContextKey struct{}
-type saveOutcomeKey struct{}
-type saveOutcome struct{ err error }
+type (
+	loginContextKey struct{}
+	saveOutcomeKey  struct{}
+	saveOutcome     struct{ err error }
+)
 
 func withLoginTransaction(ctx context.Context, transactionID string) (context.Context, *saveOutcome) {
 	outcome := &saveOutcome{}
@@ -67,7 +70,7 @@ func withLoginTransaction(ctx context.Context, transactionID string) (context.Co
 }
 
 func openStore(filename string, encryptionKey []byte, transactionTTL, completionTTL time.Duration) (*stateStore, error) {
-	if err := os.MkdirAll(filepath.Dir(filename), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0o700); err != nil {
 		return nil, fmt.Errorf("create atproto state directory: %w", err)
 	}
 	db, err := sql.Open("sqlite3", filename+"?_busy_timeout=5000&_journal_mode=WAL&_foreign_keys=on")
@@ -110,7 +113,7 @@ CREATE INDEX IF NOT EXISTS atproto_oauth_expiry ON atproto_oauth_requests(expire
 		db.Close()
 		return nil, fmt.Errorf("garbage-collect atproto state: %w", err)
 	}
-	if err := os.Chmod(filename, 0600); err != nil {
+	if err := os.Chmod(filename, 0o600); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("restrict atproto state database permissions: %w", err)
 	}
