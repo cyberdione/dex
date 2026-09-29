@@ -153,6 +153,8 @@ func TestHandleIntrospect(t *testing.T) {
 	defer httpServer.Close()
 
 	mockTestStorage(t, s.storage)
+	refreshToken, err := s.storage.GetRefresh(ctx, "test")
+	require.NoError(t, err)
 
 	activeAccessToken, expiry, err := s.issuer.SignIDToken(ctx, tokens.Authorization{
 		Client: storage.Client{ID: "test"},
@@ -207,7 +209,7 @@ func TestHandleIntrospect(t *testing.T) {
 		{
 			testName:           "Refresh Token: active",
 			token:              activeRefreshToken,
-			response:           toJSON(getIntrospectionValue(s.issuerURL.URL, t0, t0.Add(refreshTokenPolicy.AbsoluteLifetime()), "refresh_token")),
+			response:           toJSON(getIntrospectionValue(s.issuerURL.URL, refreshToken.CreatedAt, refreshToken.CreatedAt.Add(refreshTokenPolicy.AbsoluteLifetime()), "refresh_token")),
 			responseStatusCode: 200,
 		},
 		{
