@@ -9,8 +9,9 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
-	"github.com/dexidp/dex/connector"
 	"github.com/google/uuid"
+
+	"github.com/dexidp/dex/connector"
 )
 
 func testStore(t *testing.T) *stateStore {

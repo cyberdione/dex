@@ -15,6 +15,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"github.com/dexidp/dex/connector"
 )
 

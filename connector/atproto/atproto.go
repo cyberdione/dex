@@ -23,9 +23,10 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/dexidp/dex/connector"
 	"github.com/ghodss/yaml"
 	"github.com/google/uuid"
+
+	"github.com/dexidp/dex/connector"
 	_ "github.com/mattn/go-sqlite3"
 )
 
