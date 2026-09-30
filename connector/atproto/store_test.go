@@ -3,6 +3,7 @@ package atproto
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -148,6 +149,52 @@ func TestLoginURLKeepsDexCallbackStateSeparate(t *testing.T) {
 	}
 	if _, _, err := conn.LoginURL(connector.Scopes{}, "https://attacker.example/dex/callback", "other-state"); err == nil {
 		t.Fatal("accepted a callback on a different authority")
+	}
+}
+
+func TestLoginFormUsesDexThemeAndPreservesTransaction(t *testing.T) {
+	for _, test := range []struct {
+		issuerPath string
+		open       bool
+		prompt     string
+	}{
+		{issuerPath: "/dex", open: true, prompt: "AT Protocol handle"},
+		{issuerPath: "/", open: false, prompt: "Enrolled handle or DID"},
+	} {
+		t.Run(test.issuerPath, func(t *testing.T) {
+			base, err := url.Parse("https://id.example" + strings.TrimSuffix(test.issuerPath, "/") + "/connectors/atproto")
+			if err != nil {
+				t.Fatal(err)
+			}
+			conn := &atprotoConnector{
+				id: "atproto", base: base, store: testStore(t),
+				config: Config{AllowUnlistedAccounts: test.open}, transactionTTL: 5 * time.Minute,
+			}
+			loginURL, _, err := conn.LoginURL(connector.Scopes{}, "https://id.example"+strings.TrimSuffix(test.issuerPath, "/")+"/callback", "dex-state")
+			if err != nil {
+				t.Fatal(err)
+			}
+			response := httptest.NewRecorder()
+			conn.loginForm(response, httptest.NewRequest(http.MethodGet, loginURL, nil))
+			if response.Code != http.StatusOK {
+				t.Fatalf("login form returned %d", response.Code)
+			}
+			page := response.Body.String()
+			for _, expected := range []string{
+				`href="` + strings.TrimSuffix(test.issuerPath, "/") + `/static/main.css"`,
+				`href="` + strings.TrimSuffix(test.issuerPath, "/") + `/theme/styles.css"`,
+				`class="theme-form-input"`,
+				`class="dex-btn theme-btn--primary"`,
+				`name="tx"`, `name="csrf"`, `name="account"`, test.prompt,
+			} {
+				if !strings.Contains(page, expected) {
+					t.Errorf("login form missing %q", expected)
+				}
+			}
+			if len(response.Result().Cookies()) != 1 || response.Result().Cookies()[0].Path != test.issuerPath {
+				t.Error("login form did not preserve the issuer-scoped browser cookie")
+			}
+		})
 	}
 }
 

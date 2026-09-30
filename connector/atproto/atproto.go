@@ -216,13 +216,40 @@ func (c *atprotoConnector) jwks(w http.ResponseWriter, r *http.Request) {
 }
 
 var loginPage = template.Must(template.New("atproto-login").Parse(`<!doctype html>
-<html lang="en"><meta charset="utf-8"><title>Workshop sign in</title>
-<h1>Sign in with atproto</h1>
-<form method="post" action="login">
-<input type="hidden" name="tx" value="{{.Transaction}}">
-<input type="hidden" name="csrf" value="{{.CSRF}}">
-	<label>{{.AccountPrompt}} <input name="account" required autocomplete="username"></label>
-<button type="submit">Continue to atproto</button></form></html>`))
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in with AT Protocol</title>
+    <link href="{{.MainCSS}}" rel="stylesheet">
+    <link href="{{.ThemeCSS}}" rel="stylesheet">
+    <link rel="icon" href="{{.Favicon}}">
+  </head>
+  <body class="theme-body">
+    <div class="theme-navbar">
+      <div class="theme-navbar__logo-wrap">
+        <img class="theme-navbar__logo" src="{{.Logo}}" alt="Identity provider">
+      </div>
+    </div>
+    <main class="dex-container">
+      <div class="theme-panel">
+        <h1 class="theme-heading">Sign in with AT Protocol</h1>
+        <form method="post" action="login">
+          <input type="hidden" name="tx" value="{{.Transaction}}">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <div class="theme-form-row">
+            <div class="theme-form-label"><label for="account">{{.AccountPrompt}}</label></div>
+            <input id="account" name="account" type="text" class="theme-form-input"
+              placeholder="{{.AccountPlaceholder}}" required autocomplete="username"
+              autocapitalize="none" spellcheck="false" autofocus>
+          </div>
+          <p class="dex-subtle-text">{{.AccountHint}}</p>
+          <button type="submit" class="dex-btn theme-btn--primary">Continue to AT Protocol</button>
+        </form>
+      </div>
+    </main>
+  </body>
+</html>`))
 
 func (c *atprotoConnector) loginForm(w http.ResponseWriter, r *http.Request) {
 	if len(r.URL.Query()["tx"]) != 1 || !validID(r.URL.Query().Get("tx")) {
@@ -250,14 +277,35 @@ func (c *atprotoConnector) loginForm(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	accountPrompt := "Enrolled handle or DID"
+	accountPlaceholder := "alice.bsky.social or did:plc:..."
+	accountHint := "Enter the handle or DID registered for your account."
 	if c.config.AllowUnlistedAccounts {
-		accountPrompt = "Atproto handle"
+		accountPrompt = "AT Protocol handle"
+		accountPlaceholder = "alice.bsky.social"
+		accountHint = "Enter your handle to continue to your account's authorization page."
 	}
+	issuerPath := path.Dir(path.Dir(c.base.Path))
 	if err := loginPage.Execute(w, struct {
-		Transaction   string
-		CSRF          string
-		AccountPrompt string
-	}{txID, csrf, accountPrompt}); err != nil {
+		Transaction        string
+		CSRF               string
+		AccountPrompt      string
+		AccountPlaceholder string
+		AccountHint        string
+		MainCSS            string
+		ThemeCSS           string
+		Favicon            string
+		Logo               string
+	}{
+		Transaction:        txID,
+		CSRF:               csrf,
+		AccountPrompt:      accountPrompt,
+		AccountPlaceholder: accountPlaceholder,
+		AccountHint:        accountHint,
+		MainCSS:            path.Join(issuerPath, "static/main.css"),
+		ThemeCSS:           path.Join(issuerPath, "theme/styles.css"),
+		Favicon:            path.Join(issuerPath, "theme/favicon.png"),
+		Logo:               path.Join(issuerPath, "theme/logo.png"),
+	}); err != nil {
 		c.logger.Error("render atproto login form", "err", err)
 	}
 }
