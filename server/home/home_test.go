@@ -18,11 +18,14 @@ import (
 )
 
 func TestHomeUsesThemeWithoutSessions(t *testing.T) {
-	_, _, _, pages, err := templates.LoadWebConfig(templates.Config{
+	static, theme, robots, pages, err := templates.LoadWebConfig(templates.Config{
 		WebFS: web.FS(), Issuer: "Federate", IssuerURL: "https://login.federate.to/dex", Theme: "federate",
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if static == nil || theme == nil || robots == nil {
+		t.Fatal("web assets were not loaded")
 	}
 	issuer, err := url.Parse("https://login.federate.to/dex")
 	if err != nil {
