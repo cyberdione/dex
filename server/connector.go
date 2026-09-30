@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/dexidp/dex/connector/atlassiancrowd"
+	"github.com/dexidp/dex/connector/atproto"
 	"github.com/dexidp/dex/connector/authproxy"
 	"github.com/dexidp/dex/connector/bitbucketcloud"
 	"github.com/dexidp/dex/connector/gitea"
@@ -24,6 +25,7 @@ import (
 // is handed to connectors.Resolver so the connectors package itself imports no
 // connector implementation; a library consumer can pass a different map.
 var ConnectorsConfig = map[string]func() connectors.ConnectorConfig{
+	"atproto":         func() connectors.ConnectorConfig { return new(atproto.Config) },
 	"keystone":        func() connectors.ConnectorConfig { return new(keystone.Config) },
 	"mockCallback":    func() connectors.ConnectorConfig { return new(mock.CallbackConfig) },
 	"mockPassword":    func() connectors.ConnectorConfig { return new(mock.PasswordConfig) },

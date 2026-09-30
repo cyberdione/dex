@@ -37,7 +37,19 @@ func newLogger(t *testing.T) *slog.Logger {
 // They set connectors in the cache directly; the mock callback connector covers
 // the few paths that open one.
 func testResolveConnector(conn storage.Connector) (connector.Connector, error) {
+	if conn.Type == "testHTTP" {
+		return testHTTPConnector{}, nil
+	}
 	return mock.NewCallbackConnector(nil), nil
+}
+
+type testHTTPConnector struct{}
+
+func (testHTTPConnector) ConnectorHTTPHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Connector-Path", r.URL.Path)
+		w.WriteHeader(http.StatusNoContent)
+	})
 }
 
 // testMux adapts a gorilla router to router.Mux so a Handler can mount its
@@ -155,8 +167,23 @@ func newTestHandler(t *testing.T, updateConfig func(c *testFlowConfig)) (*httpte
 			ResourceVersion: "1",
 		}))
 	}
+	require.NoError(t, store.CreateConnector(ctx, storage.Connector{
+		ID:              "http-test",
+		Type:            "testHTTP",
+		Name:            "HTTP test connector",
+		ResourceVersion: "1",
+	}))
 
 	return srv, &testServer{Handler: h, mux: router}
+}
+
+func TestConnectorHTTPHandlerIsMountedUnderConnectorPrefix(t *testing.T) {
+	srv, _ := newTestHandler(t, nil)
+	response, err := http.Get(srv.URL + "/connectors/http-test/ping")
+	require.NoError(t, err)
+	defer response.Body.Close()
+	require.Equal(t, http.StatusNoContent, response.StatusCode)
+	require.Equal(t, "/ping", response.Header.Get("X-Connector-Path"))
 }
 
 // testKey is a throwaway RSA key for the mock signer; the flow's unit tests

@@ -102,6 +102,9 @@ func (h *Handler) handleConnectorCallback(w http.ResponseWriter, r *http.Request
 		h.renderError(r, w, http.StatusInternalServerError, "Login error.")
 		return
 	}
+	if completion, ok := conn.Connector.(connector.CallbackCompletionHandler); ok {
+		completion.CallbackCompleted(w, r, authReq.ConnectorData)
+	}
 
 	// Connector callbacks don't render the remember_me checkbox, so we use the server default.
 	// The password login handler reads r.FormValue("remember_me") from the submitted form instead.

@@ -1,0 +1,114 @@
+name: Publish Cyberdione Dex image
+
+on:
+  pull_request:
+    branches: [ewindisch/atproto]
+  push:
+    branches: [ewindisch/atproto]
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Test private FIFO secret transport
+        run: python3 deploy/test-secret-pipe-writer.py
+      - name: Test AWS MCP protocol negotiation
+        run: python3 deploy/test-asm-exec-mcp-protocol.py
+
+  check:
+    if: github.event_name == 'pull_request'
+    needs: unit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Determine Dex version
+        id: dex-version
+        run: printf 'value=%s\n' "$(./scripts/git-version)" >> "$GITHUB_OUTPUT"
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build the production target for scanning
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile
+          target: cyberdione
+          platforms: linux/arm64
+          tags: cyberdione/dex-atproto:pr-${{ github.event.pull_request.head.sha }}
+          load: true
+          build-args: |
+            BASE_IMAGE=docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+            VERSION=${{ steps.dex-version.outputs.value }}
+          sbom: false
+          provenance: false
+          cache-from: type=gha,scope=dex-atproto
+          cache-to: type=gha,mode=max,scope=dex-atproto
+      - name: Scan the pull request image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.74.0
+          image-ref: cyberdione/dex-atproto:pr-${{ github.event.pull_request.head.sha }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/ewindisch/atproto' && vars.DEX_ECR_PUBLISH_ENABLED == 'true'
+    needs: unit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Determine Dex version
+        id: dex-version
+        run: printf 'value=%s\n' "$(./scripts/git-version)" >> "$GITHUB_OUTPUT"
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Configure AWS credentials through GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::666468248896:role/cyberdione-dex-image-publisher
+          aws-region: us-east-1
+          role-session-name: dex-image-${{ github.run_id }}
+      - name: Log in to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+      - name: Build and publish immutable image
+        id: image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile
+          target: cyberdione
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/cyberdione/dex-atproto:${{ github.sha }}
+          build-args: |
+            BASE_IMAGE=docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+            VERSION=${{ steps.dex-version.outputs.value }}
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha,scope=dex-atproto
+          cache-to: type=gha,mode=max,scope=dex-atproto
