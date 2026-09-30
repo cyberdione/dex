@@ -360,7 +360,7 @@ func (c *atprotoConnector) oauthCallback(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "atproto handle is no longer verified", http.StatusForbidden)
 		return
 	}
-	identity := connector.Identity{UserID: tx.ExpectedDID, Username: tx.ExpectedHandle, PreferredUsername: tx.ExpectedHandle, Email: "", EmailVerified: false, Groups: []string{"workshop-attendee"}}
+	identity := identityForVerifiedAccount(tx.ExpectedDID, tx.ExpectedHandle, c.config.AllowUnlistedAccounts)
 	ticket, err := randomToken()
 	if err != nil || c.store.finishTransaction(tx.ID, "complete", transaction{TicketHash: digest(ticket), Identity: identity}) != nil {
 		http.Error(w, "atproto completion could not be stored", http.StatusInternalServerError)
@@ -378,6 +378,14 @@ func (c *atprotoConnector) oauthCallback(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	http.Redirect(w, r, completion.String(), http.StatusSeeOther)
+}
+
+func identityForVerifiedAccount(did, handle string, allowUnlistedAccounts bool) connector.Identity {
+	identity := connector.Identity{UserID: did, Username: handle, PreferredUsername: handle, Email: "", EmailVerified: false}
+	if !allowUnlistedAccounts {
+		identity.Groups = []string{"workshop-attendee"}
+	}
+	return identity
 }
 
 func (c *atprotoConnector) accountEntry(ctx context.Context, account string) (rosterEntry, error) {

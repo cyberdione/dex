@@ -176,6 +176,18 @@ func TestOpenAccountEntryBindsVerifiedHandleAndDID(t *testing.T) {
 	}
 }
 
+func TestOpenAccountClaimsDoNotGrantWorkshopMembership(t *testing.T) {
+	did, handle := "did:plc:abc", "alice.example"
+	open := identityForVerifiedAccount(did, handle, true)
+	if open.UserID != did || open.PreferredUsername != handle || len(open.Groups) != 0 {
+		t.Fatalf("open account must expose verified identity without workshop authorization: %#v", open)
+	}
+	rostered := identityForVerifiedAccount(did, handle, false)
+	if len(rostered.Groups) != 1 || rostered.Groups[0] != "workshop-attendee" {
+		t.Fatalf("roster mode lost its workshop claim: %#v", rostered)
+	}
+}
+
 func TestEncryptedStateAndSingleUseDexCompletion(t *testing.T) {
 	store := testStore(t)
 	id := uuid.NewString()
