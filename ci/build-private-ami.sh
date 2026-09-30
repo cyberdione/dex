@@ -69,7 +69,7 @@ scp "${ssh_opts[@]}" ci/remote-build-private-ami.sh \
   "rocky@${builder_ip}:/home/rocky/"
 ssh "${ssh_opts[@]}" "rocky@${builder_ip}" \
   "sudo bash /home/rocky/remote-build-private-ami.sh '$image_ref' '$BOOTC_BUILDER_BUCKET' '$ami_name'" \
-  | tee "$CI_PROJECT_DIR/.identity-ami-build.log"
+  2>&1 | tee "$CI_PROJECT_DIR/.identity-ami-build.log"
 
 ami_id="$(sed -nE 's/.*AMI registered: (ami-[0-9a-f]+).*/\1/p' \
   "$CI_PROJECT_DIR/.identity-ami-build.log" | tail -1)"
