@@ -19,6 +19,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Test private FIFO secret transport
         run: python3 deploy/test-secret-pipe-writer.py
+      - name: Test AWS MCP protocol negotiation
+        run: python3 deploy/test-asm-exec-mcp-protocol.py
 
   check:
     if: github.event_name == 'pull_request'

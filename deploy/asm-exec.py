@@ -35,6 +35,8 @@ SMA_ENDPOINT = os.environ.get('AWS_SECRETS_MANAGER_AGENT_ENDPOINT', 'http://loca
 SSRF_TOKEN = os.environ.get('AWS_SESSION_TOKEN', os.environ.get('AWS_TOKEN', ''))
 MCP_ENDPOINT = os.environ.get('ASM_EXEC_MCP_ENDPOINT', 'https://aws-mcp.us-east-1.api.aws/mcp')
 MAX_STDIN_REFERENCE_BYTES = 64 * 1024
+MCP_PROTOCOL_VERSION = '2025-06-18'
+SUPPORTED_MCP_PROTOCOL_VERSIONS = frozenset(('2024-11-05', MCP_PROTOCOL_VERSION))
 
 _sma_available = None
 
@@ -185,7 +187,7 @@ def _sign_v4(method, path, body, creds, service, region, now):
     return headers
 
 
-def _mcp_post(payload, session_id=None, timeout=10):
+def _mcp_post(payload, session_id=None, timeout=10, protocol_version=None):
     """POST a SigV4-signed JSON-RPC request to the AWS MCP endpoint.
 
     Returns (parsed_response, session_id_from_response). The caller passes the
@@ -207,6 +209,8 @@ def _mcp_post(payload, session_id=None, timeout=10):
     req.add_header('User-Agent', 'ASMExecWrapper/1.0.0')
     if session_id:
         req.add_header('Mcp-Session-Id', session_id)
+    if protocol_version:
+        req.add_header('MCP-Protocol-Version', protocol_version)
     for k, v in sig_headers.items():
         req.add_header(k, v)
 
@@ -231,13 +235,14 @@ def _mcp_failure(phase, failure_class, *, status=None, reason=None):
     print(" ".join(fields), file=sys.stderr)
 
 
-def _mcp_phase_call(phase, payload, session_id=None):
+def _mcp_phase_call(phase, payload, session_id=None, protocol_version=None):
     """Call one MCP protocol phase and expose only fixed failure metadata."""
     try:
         # run_script legitimately executes an AWS API inside the MCP sandbox.
         # Keep handshake phases short while giving that bounded read time to return.
         timeout = 60 if phase == "tools-call" else 10
-        return _mcp_post(payload, session_id, timeout=timeout)
+        return _mcp_post(payload, session_id, timeout=timeout,
+                         protocol_version=protocol_version)
     except urllib.error.HTTPError as exc:
         # Deliberately do not read exc.fp or print its message: either can carry
         # an API response body or request context.
@@ -280,7 +285,7 @@ def _initialize_result(response):
         if result is not None:
             _mcp_failure("initialize", "protocol")
         return None
-    if result.get("protocolVersion") != "2024-11-05":
+    if result.get("protocolVersion") not in SUPPORTED_MCP_PROTOCOL_VERSIONS:
         _mcp_failure("initialize", "protocol")
         return None
     capabilities = result.get("capabilities")
@@ -425,7 +430,7 @@ def _resolve_via_mcp(secret_name, label, region):
     initialized = _mcp_phase_call(
         "initialize",
         {"jsonrpc": "2.0", "id": 1, "method": "initialize",
-         "params": {"protocolVersion": "2024-11-05",
+         "params": {"protocolVersion": MCP_PROTOCOL_VERSION,
                     "clientInfo": {"name": "asm-exec", "version": "1.0.0"},
                     "capabilities": {}}},
     )
@@ -434,11 +439,13 @@ def _resolve_via_mcp(secret_name, label, region):
     initialize_response, session_id = initialized
     if _initialize_result(initialize_response) is None:
         return None
+    protocol_version = initialize_response["result"]["protocolVersion"]
 
     notified = _mcp_phase_call(
         "notify",
         {"jsonrpc": "2.0", "method": "notifications/initialized"},
         session_id,
+        protocol_version,
     )
     if notified is None:
         return None
@@ -452,6 +459,7 @@ def _resolve_via_mcp(secret_name, label, region):
          "params": {"name": "aws___run_script",
                     "arguments": {"code": _run_script_code(secret_name, label, region)}}},
         session_id,
+        protocol_version,
     )
     if called is None:
         return None
