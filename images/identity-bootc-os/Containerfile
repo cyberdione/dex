@@ -15,6 +15,11 @@ COPY public.xml /etc/firewalld/zones/public.xml
 COPY persistent.conf /etc/systemd/journald.conf.d/persistent.conf
 
 RUN chmod 0755 /usr/local/sbin/dex-storage-init /usr/local/sbin/run-dex \
+    && chmod 0644 /etc/systemd/system/dex-storage-init.service /etc/systemd/system/dex.service \
+         /etc/containers/systemd/caddy.container /etc/caddy/Caddyfile \
+         /etc/dex/rds-ca-rsa2048-g1.pem /etc/firewalld/zones/public.xml \
+         /etc/systemd/journald.conf.d/persistent.conf \
+    && test "$(stat -c %a /etc/systemd/system/dex.service)" = 644 \
     && systemctl enable dex-storage-init.service dex.service \
     && systemd-analyze verify /etc/systemd/system/dex-storage-init.service /etc/systemd/system/dex.service \
     && firewall-offline-cmd --check-config \

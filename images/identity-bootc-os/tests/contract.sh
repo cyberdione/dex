@@ -3,6 +3,8 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 grep -Fq 'ferruleos-bootc-os@sha256:' "$root/Containerfile"
 grep -Fq 'COPY caddy.container /etc/containers/systemd/caddy.container' "$root/Containerfile"
+grep -Fq 'chmod 0644 /etc/systemd/system/dex-storage-init.service /etc/systemd/system/dex.service' "$root/Containerfile"
+grep -Fq '/etc/containers/systemd/caddy.container /etc/caddy/Caddyfile' "$root/Containerfile"
 grep -Fq '<service name="http"/>' "$root/public.xml"
 grep -Fq '<service name="https"/>' "$root/public.xml"
 grep -Fq 'EnvironmentFile=/etc/dex/deploy.env' "$root/dex.service"
