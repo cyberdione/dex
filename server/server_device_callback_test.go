@@ -97,6 +97,14 @@ func TestDeviceCallback(t *testing.T) {
 			// Instead, a safe generic message is shown.
 		},
 		{
+			testName: "Error During Authorization Without Code",
+			values: formValues{
+				state: "XXXX-XXXX",
+				error: "invalid_request",
+			},
+			expectedResponseCode: http.StatusBadRequest,
+		},
+		{
 			testName: "Expired Auth Code",
 			values:   baseFormValues,
 			testAuthCode: storage.AuthCode{
@@ -325,7 +333,7 @@ func TestDeviceCallback(t *testing.T) {
 			}
 
 			// Special check for error message safety tests
-			if tc.testName == "Prevent cross-site scripting" || tc.testName == "Error During Authorization" {
+			if tc.testName == "Prevent cross-site scripting" || tc.testName == "Error During Authorization" || tc.testName == "Error During Authorization Without Code" {
 				result, _ := io.ReadAll(rr.Body)
 				responseBody := string(result)
 
@@ -335,7 +343,7 @@ func TestDeviceCallback(t *testing.T) {
 						t.Errorf("%s: XSS script found in response, but should be blocked: %q", tc.testName, responseBody)
 					}
 				}
-				if tc.testName == "Error During Authorization" {
+				if tc.testName == "Error During Authorization" || tc.testName == "Error During Authorization Without Code" {
 					if strings.Contains(responseBody, "Error Condition") {
 						t.Errorf("%s: Error details found in response, but should be hidden: %q", tc.testName, responseBody)
 					}

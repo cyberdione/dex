@@ -272,9 +272,19 @@ func (h *Handler) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	deviceToken, err := h.Storage.GetDeviceToken(ctx, deviceRequest.DeviceCode)
+	if err != nil || h.Now().After(deviceToken.Expiry) {
+		if err != nil && err != storage.ErrNotFound {
+			h.Logger.ErrorContext(ctx, "failed to get device token", "err", err)
+		}
+		h.renderError(r, w, http.StatusBadRequest, "Invalid or expired device code.")
+		return
+	}
 
 	// Redirect to the dex auth endpoint, which sends the user back to the device
-	// callback once they authenticate.
+	// callback once they authenticate. Carry the device request's PKCE challenge
+	// through this internal authorization-code leg: /auth may require PKCE, while
+	// the polling device proves possession of the verifier at /token.
 	u := h.IssuerURL
 	u.Path = path.Join(u.Path, "/auth")
 	q := u.Query()
@@ -288,6 +298,10 @@ func (h *Handler) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 	q.Set("response_type", "code")
 	q.Set("redirect_uri", h.IssuerURL.AbsPath(oauth2.DeviceCallbackURI))
 	q.Set("scope", strings.Join(deviceRequest.Scopes, " "))
+	if deviceToken.PKCE.CodeChallenge != "" {
+		q.Set("code_challenge", deviceToken.PKCE.CodeChallenge)
+		q.Set("code_challenge_method", deviceToken.PKCE.CodeChallengeMethod)
+	}
 	u.RawQuery = q.Encode()
 
 	http.Redirect(w, r, u.String(), http.StatusFound)
@@ -319,12 +333,6 @@ func (h *Handler) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) completeDeviceAuthorization(w http.ResponseWriter, r *http.Request) (string, *deviceFlowError) {
 	ctx := r.Context()
 
-	userCode := r.FormValue("state")
-	code := r.FormValue("code")
-	if userCode == "" || code == "" {
-		return "", &deviceFlowError{status: http.StatusBadRequest, message: "Request was missing parameters"}
-	}
-
 	// Authorization redirect callback from the OAuth2 auth flow.
 	if errMsg := r.FormValue("error"); errMsg != "" {
 		// Log the error details but don't expose them to the user.
@@ -332,6 +340,12 @@ func (h *Handler) completeDeviceAuthorization(w http.ResponseWriter, r *http.Req
 			"error", errMsg,
 			"error_description", r.FormValue("error_description"))
 		return "", &deviceFlowError{status: http.StatusBadRequest, message: "Authorization failed. Please try again."}
+	}
+
+	userCode := r.FormValue("state")
+	code := r.FormValue("code")
+	if userCode == "" || code == "" {
+		return "", &deviceFlowError{status: http.StatusBadRequest, message: "Request was missing parameters"}
 	}
 
 	authCode, err := h.Storage.GetAuthCode(ctx, code)
