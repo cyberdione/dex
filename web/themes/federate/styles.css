@@ -1,0 +1,275 @@
+/* Federate uses the light palette from @cyberdione/ui's brandTheme.
+ * The logo is the Dione moon artwork used by cyberdione-corp, recolored
+ * as that site's header does: warm white moon on a near-black disc. */
+:root {
+  color-scheme: light;
+}
+
+.theme-body {
+  --dex-fg: #332e28;
+  --dex-fg-muted: #5f5a4f;
+  --dex-border: #c4b39d;
+  --dex-accent: #993a15;
+  background: #e6d5bc;
+  color: var(--dex-fg);
+  display: flex;
+  flex-direction: column;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  min-height: 100vh;
+}
+
+.theme-navbar {
+  align-items: center;
+  background: #e6d5bc;
+  border-bottom: 1px solid #c4b39d;
+  display: flex;
+  min-height: 72px;
+  padding: 12px max(20px, calc((100vw - 1040px) / 2));
+}
+
+.theme-navbar__logo-wrap {
+  align-items: center;
+  display: inline-flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+.theme-navbar__logo {
+  flex: none;
+  height: 40px;
+  width: 40px;
+}
+
+.theme-navbar__brand {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  text-align: left;
+}
+
+.theme-navbar__brand-name {
+  color: #161311;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.theme-navbar__brand-byline {
+  color: #993a15;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+}
+
+.dex-container {
+  color: var(--dex-fg);
+  flex: 1 0 auto;
+  margin-top: clamp(40px, 8vh, 84px);
+  width: 100%;
+}
+
+.theme-panel {
+  background: #f2e7d5;
+  border: 1px solid #c4b39d;
+  border-radius: 12px;
+  box-shadow: 0 14px 36px rgb(56 50 44 / 12%);
+  padding: clamp(24px, 5vw, 36px);
+}
+
+.theme-heading {
+  color: #161311;
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.3;
+  margin: 0 0 20px;
+}
+
+.theme-form-row {
+  display: block;
+  margin: 16px auto;
+}
+
+.theme-login-notice {
+  color: #5f5a4f;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 14px auto 0;
+  max-width: 300px;
+  text-align: center;
+}
+
+.theme-login-notice a {
+  color: #993a15;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.theme-login-notice a:focus-visible {
+  outline: 3px solid #993a15;
+  outline-offset: 3px;
+}
+
+.theme-form-label {
+  color: #332e28;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 4px auto 7px;
+  text-align: left;
+  width: min(100%, 280px);
+}
+
+.theme-form-input {
+  background: #fbf6ee;
+  border: 1px solid #8a7f6e;
+  border-radius: 8px;
+  color: #161311;
+  display: block;
+  font-family: inherit;
+  font-size: 16px;
+  height: 44px;
+  margin: auto;
+  padding: 9px 12px;
+  width: min(100%, 280px);
+}
+
+.theme-form-input::placeholder {
+  color: #5f5a4f;
+}
+
+.theme-form-input:focus-visible,
+.dex-btn:focus-visible,
+.theme-btn-provider:focus-visible,
+.theme-footer a:focus-visible {
+  outline: 3px solid #993a15;
+  outline-offset: 3px;
+}
+
+.theme-btn--primary,
+.theme-btn--success {
+  background: #993a15;
+  color: #fff6ea;
+  font-weight: 700;
+  min-height: 44px;
+  min-width: min(100%, 280px);
+  padding: 9px 16px;
+}
+
+.theme-btn--primary:hover,
+.theme-btn--success:hover {
+  background: #662810;
+  color: #fff6ea;
+}
+
+.theme-btn-provider {
+  background: #fbf6ee;
+  border: 1px solid #8a7f6e;
+  color: #332e28;
+  max-width: 100%;
+  min-height: 44px;
+  width: 280px;
+}
+
+.theme-btn-provider:hover {
+  background: #ffe4c8;
+  border-color: #cc4e1b;
+  color: #161311;
+}
+
+.dex-btn-icon--atproto {
+  background: #38322c;
+  color: #fff6ea;
+  display: grid;
+  font-size: 22px;
+  font-weight: 700;
+  place-items: center;
+}
+
+.dex-btn-icon--atproto::after {
+  content: "@";
+}
+
+.dex-subtle-text,
+.dex-list {
+  color: #5f5a4f;
+}
+
+.dex-separator {
+  color: #c4b39d;
+}
+
+.theme-link-back a,
+.dex-home__link {
+  color: #993a15;
+}
+
+.theme-link-back a:hover,
+.dex-home__link:hover {
+  color: #662810;
+}
+
+.theme-remember-me {
+  align-items: center;
+  display: flex;
+  font-size: 14px;
+  gap: 8px;
+  margin: 4px auto;
+  width: min(100%, 280px);
+}
+
+.theme-footer {
+  border-top: 1px solid #c4b39d;
+  color: #5f5a4f;
+  display: block;
+  flex: none;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 56px;
+  width: 100%;
+}
+
+.theme-footer__inner {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 32px;
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: 1080px;
+  padding: 20px;
+}
+
+.theme-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.theme-footer a {
+  color: #993a15;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.theme-footer a:hover {
+  color: #662810;
+}
+
+@media (max-width: 420px) {
+  .theme-navbar {
+    min-height: 68px;
+  }
+
+  .theme-navbar__logo {
+    height: 36px;
+    width: 36px;
+  }
+
+  .theme-navbar__brand-name {
+    font-size: 20px;
+  }
+
+  .theme-footer {
+    margin-top: 40px;
+  }
+}

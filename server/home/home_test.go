@@ -1,13 +1,52 @@
 package home
 
 import (
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/web"
 )
+
+func TestHomeUsesThemeWithoutSessions(t *testing.T) {
+	static, theme, robots, pages, err := templates.LoadWebConfig(templates.Config{
+		WebFS: web.FS(), Issuer: "Federate", IssuerURL: "https://login.federate.to/dex", Theme: "federate",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if static == nil || theme == nil || robots == nil {
+		t.Fatal("web assets were not loaded")
+	}
+	issuer, err := url.Parse("https://login.federate.to/dex")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := Handler{IssuerURL: oauth2.IssuerURL{URL: *issuer}, Templates: pages, Logger: slog.Default()}
+	response := httptest.NewRecorder()
+	h.handle(response, httptest.NewRequest(http.MethodGet, "https://login.federate.to/dex", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("home returned %d", response.Code)
+	}
+	page := response.Body.String()
+	for _, expected := range []string{"Federate", "by Cyberdione Labs", "Not signed in", "theme/styles.css", "static/legal/terms.html", "static/legal/privacy.html", "Cyberdione Labs Corporation. All rights reserved.", "/dex/.well-known/openid-configuration"} {
+		if !strings.Contains(page, expected) {
+			t.Errorf("home missing %q", expected)
+		}
+	}
+	if strings.Contains(page, "Dex IdP") {
+		t.Error("home fell back to the unbranded inline page")
+	}
+}
 
 func TestSessionExpiry(t *testing.T) {
 	absolute := time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC)

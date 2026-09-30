@@ -15,9 +15,8 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-// Handler serves the landing page. When sessions are enabled and a home template
-// is available it renders the rich page (with logged-in details); otherwise it
-// falls back to a minimal inline page.
+// Handler serves the landing page. When a home template is available it renders
+// that page, adding identity details when sessions are enabled.
 type Handler struct {
 	IssuerURL oauth2.IssuerURL
 	Storage   storage.Storage
@@ -38,7 +37,7 @@ func (h *Handler) renderError(r *http.Request, w http.ResponseWriter, status int
 }
 
 func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
-	if h.Sessions == nil || h.Sessions.Config == nil || !h.Templates.HasHome() {
+	if h.Templates == nil || !h.Templates.HasHome() {
 		h.handleInline(w, r)
 		return
 	}
@@ -53,15 +52,17 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 	// ValidSession enforces the nonce AND absolute/idle expiry (clearing an
 	// expired session), so an expired-but-not-yet-purged cookie no longer renders
 	// a logged-in page.
-	if session := h.Sessions.ValidSession(ctx, w, r); session != nil {
-		data.LoggedIn = true
-		data.IPAddress = session.IPAddress
-		data.UserAgent = session.UserAgent
-		data.SignedInISO, data.SignedInText = timeFields(session.CreatedAt)
-		expiry, idle := sessionExpiry(session)
-		data.SessionExpiresISO, data.SessionExpiresText = timeFields(expiry)
-		data.SessionExpiryIsIdle = idle
-		h.populateData(ctx, &data, session.UserID, session.ConnectorID)
+	if h.Sessions != nil && h.Sessions.Config != nil {
+		if session := h.Sessions.ValidSession(ctx, w, r); session != nil {
+			data.LoggedIn = true
+			data.IPAddress = session.IPAddress
+			data.UserAgent = session.UserAgent
+			data.SignedInISO, data.SignedInText = timeFields(session.CreatedAt)
+			expiry, idle := sessionExpiry(session)
+			data.SessionExpiresISO, data.SessionExpiresText = timeFields(expiry)
+			data.SessionExpiryIsIdle = idle
+			h.populateData(ctx, &data, session.UserID, session.ConnectorID)
+		}
 	}
 
 	if err := h.Templates.Home(r, w, data); err != nil {

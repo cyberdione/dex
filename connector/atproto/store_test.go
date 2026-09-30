@@ -185,6 +185,12 @@ func TestLoginFormUsesDexThemeAndPreservesTransaction(t *testing.T) {
 				`href="` + strings.TrimSuffix(test.issuerPath, "/") + `/theme/styles.css"`,
 				`class="theme-form-input"`,
 				`class="dex-btn theme-btn--primary"`,
+				`theme-navbar__brand-name">Federate`,
+				`theme-navbar__brand-byline">by Cyberdione Labs`,
+				`static/legal/terms.html`,
+				`static/legal/privacy.html`,
+				`By signing in, you agree to Federate`,
+				`Cyberdione Labs Corporation. All rights reserved.`,
 				`name="tx"`, `name="csrf"`, `name="account"`, test.prompt,
 			} {
 				if !strings.Contains(page, expected) {

@@ -198,7 +198,7 @@ func (c *atprotoConnector) clientMetadata(w http.ResponseWriter, r *http.Request
 	metadata := c.client.Config.ClientMetadata()
 	metadata.GrantTypes = []string{"authorization_code"}
 	metadata.JWKSURI = stringPtr(c.config.PublicBaseURL + "/jwks.json")
-	metadata.ClientName = stringPtr("Workshop SSH access")
+	metadata.ClientName = stringPtr("Federate by Cyberdione Labs")
 	metadata.ClientURI = stringPtr(c.base.Scheme + "://" + c.base.Host + "/")
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "public, max-age=300")
@@ -220,7 +220,7 @@ var loginPage = template.Must(template.New("atproto-login").Parse(`<!doctype htm
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign in with AT Protocol</title>
+    <title>Sign in with AT Protocol | Federate</title>
     <link href="{{.MainCSS}}" rel="stylesheet">
     <link href="{{.ThemeCSS}}" rel="stylesheet">
     <link rel="icon" href="{{.Favicon}}">
@@ -228,7 +228,11 @@ var loginPage = template.Must(template.New("atproto-login").Parse(`<!doctype htm
   <body class="theme-body">
     <div class="theme-navbar">
       <div class="theme-navbar__logo-wrap">
-        <img class="theme-navbar__logo" src="{{.Logo}}" alt="Identity provider">
+        <img class="theme-navbar__logo" src="{{.Logo}}" alt="">
+        <span class="theme-navbar__brand">
+          <span class="theme-navbar__brand-name">Federate</span>
+          <span class="theme-navbar__brand-byline">by Cyberdione Labs</span>
+        </span>
       </div>
     </div>
     <main class="dex-container">
@@ -246,8 +250,19 @@ var loginPage = template.Must(template.New("atproto-login").Parse(`<!doctype htm
           <p class="dex-subtle-text">{{.AccountHint}}</p>
           <button type="submit" class="dex-btn theme-btn--primary">Continue to AT Protocol</button>
         </form>
+        <p class="theme-login-notice">By signing in, you agree to Federate’s <a href="{{.TermsURL}}">Terms of Service</a> and acknowledge its <a href="{{.PrivacyURL}}">Privacy Policy</a>.</p>
       </div>
     </main>
+    <footer class="theme-footer">
+      <div class="theme-footer__inner">
+        <span>© {{.Year}} Cyberdione Labs Corporation. All rights reserved.</span>
+        <nav aria-label="Legal and company">
+          <a href="{{.TermsURL}}">Terms of Service</a>
+          <a href="{{.PrivacyURL}}">Privacy Policy</a>
+          <a href="https://www.cyberdione.com/">Company</a>
+        </nav>
+      </div>
+    </footer>
   </body>
 </html>`))
 
@@ -295,6 +310,9 @@ func (c *atprotoConnector) loginForm(w http.ResponseWriter, r *http.Request) {
 		ThemeCSS           string
 		Favicon            string
 		Logo               string
+		TermsURL           string
+		PrivacyURL         string
+		Year               int
 	}{
 		Transaction:        txID,
 		CSRF:               csrf,
@@ -305,6 +323,9 @@ func (c *atprotoConnector) loginForm(w http.ResponseWriter, r *http.Request) {
 		ThemeCSS:           path.Join(issuerPath, "theme/styles.css"),
 		Favicon:            path.Join(issuerPath, "theme/favicon.png"),
 		Logo:               path.Join(issuerPath, "theme/logo.png"),
+		TermsURL:           path.Join(issuerPath, "static/legal/terms.html"),
+		PrivacyURL:         path.Join(issuerPath, "static/legal/privacy.html"),
+		Year:               time.Now().Year(),
 	}); err != nil {
 		c.logger.Error("render atproto login form", "err", err)
 	}
