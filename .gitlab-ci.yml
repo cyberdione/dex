@@ -1,6 +1,7 @@
 stages:
   - validate
   - image
+  - ami
 
 validate:identity-bootc:
   stage: validate
@@ -41,3 +42,36 @@ build:identity-bootc-arm64:
     paths:
       - identity-bootc-arm64.digest
     expire_in: 7 days
+
+build:identity-ami-arm64:
+  stage: ami
+  image:
+    name: public.ecr.aws/aws-cli/aws-cli:latest
+    entrypoint: [""]
+  tags:
+    - cyberdione-amd64-16gb-build
+  needs:
+    - job: build:identity-bootc-arm64
+      artifacts: true
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: https://gitlab.com
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+  before_script:
+    - |
+      missing=""
+      for bin in curl jq; do command -v "$bin" >/dev/null 2>&1 || missing="$missing $bin"; done
+      if ! command -v ssh >/dev/null 2>&1 || ! command -v scp >/dev/null 2>&1; then
+        missing="$missing openssh-clients"
+      fi
+      if [ -n "$missing" ]; then yum -y install --allowerasing $missing >/dev/null; fi
+  script:
+    - bash ci/build-private-ami.sh
+  after_script:
+    - bash ci/cleanup-private-ami.sh
+  artifacts:
+    paths:
+      - identity-ami-id.txt
+    expire_in: 30 days
