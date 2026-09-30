@@ -5,7 +5,7 @@ Wants=network-online.target dex.service
 Requires=dex-storage-init.service
 
 [Container]
-Image=docker.io/library/caddy@sha256:040e9f7480b80b6d4a7e5013a21159b950a63dcbdb956e38abe2387fb28d9ec0
+Image=docker.io/library/caddy@sha256:c802bf2721a427e961b9fd6a194c3888a180de9990b43f8530a02bd6be017e17
 ContainerName=caddy
 Network=host
 DropCapability=all
