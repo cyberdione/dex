@@ -1,0 +1,43 @@
+stages:
+  - validate
+  - image
+
+validate:identity-bootc:
+  stage: validate
+  image: quay.io/podman/stable:latest
+  tags:
+    - cyberdione-arm64-32gb-build
+  script:
+    - bash images/identity-bootc-os/tests/contract.sh
+    - bash -n images/identity-bootc-os/run-dex images/identity-bootc-os/dex-storage-init
+
+build:identity-bootc-arm64:
+  stage: image
+  image:
+    name: quay.io/podman/stable:latest
+    entrypoint: [""]
+  tags:
+    - cyberdione-arm64-32gb-build
+  variables:
+    STORAGE_DRIVER: vfs
+  needs:
+    - validate:identity-bootc
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  script:
+    - |
+      set -euo pipefail
+      test "$(uname -m)" = aarch64
+      test "$CI_PROJECT_PATH" = cyberdione/dex
+      image="$CI_REGISTRY_IMAGE/identity-bootc-os:$CI_COMMIT_SHA"
+      podman build --storage-driver "$STORAGE_DRIVER" --isolation=chroot --layers=false \
+        --format oci -f images/identity-bootc-os/Containerfile -t "$image" \
+        images/identity-bootc-os
+      printf '%s' "$CI_REGISTRY_PASSWORD" | podman login --storage-driver "$STORAGE_DRIVER" \
+        --username "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+      podman push --storage-driver "$STORAGE_DRIVER" --digestfile identity-bootc-arm64.digest "$image"
+      test "$(cat identity-bootc-arm64.digest)" != ""
+  artifacts:
+    paths:
+      - identity-bootc-arm64.digest
+    expire_in: 7 days

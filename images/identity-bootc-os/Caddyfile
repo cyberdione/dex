@@ -1,0 +1,8 @@
+{
+	email erica@windisch.us
+}
+
+login.federate.to {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:5556
+}

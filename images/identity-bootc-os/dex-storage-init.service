@@ -1,0 +1,13 @@
+[Unit]
+Description=Initialize and mount encrypted Dex connector state volume
+After=local-fs.target
+Before=dex.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/dex/deploy.env
+ExecStart=/usr/local/sbin/dex-storage-init
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
