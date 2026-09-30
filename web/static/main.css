@@ -6,6 +6,15 @@ body {
   margin: 0;
 }
 
+/* A named theme may show its own wordmark alongside the theme logo. */
+.theme-navbar__brand {
+  display: none;
+}
+
+.theme-footer {
+  display: none;
+}
+
 .dex-container {
   color: #333;
   margin: 60px auto;

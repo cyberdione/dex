@@ -13,6 +13,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Masterminds/sprig/v3"
 )
@@ -80,6 +81,7 @@ func getFuncMap(c Config) (template.FuncMap, error) {
 		"extra":  func(k string) string { return c.Extra[k] },
 		"issuer": func() string { return c.Issuer },
 		"logo":   func() string { return c.LogoURL },
+		"year":   func() int { return time.Now().Year() },
 		"url": func(reqPath, assetPath string) string {
 			return relativeURL(issuerURL.Path, reqPath, assetPath)
 		},

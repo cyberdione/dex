@@ -21,8 +21,9 @@ func TestHomeNoSessions(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	body := rr.Body.String()
-	require.Contains(t, body, "Dex IdP")
-	require.Contains(t, body, "Discovery")
+	require.Contains(t, body, "Not signed in")
+	require.Contains(t, body, "OpenID configuration")
+	require.NotContains(t, body, "Dex IdP")
 	require.NotContains(t, body, "/logout")
 }
 

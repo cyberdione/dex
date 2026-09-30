@@ -9,6 +9,9 @@
           <span class="dex-btn-icon dex-btn-icon--{{ $c.Type }}"></span>
           <span class="dex-btn-text">Log in with {{ $c.Name }}</span>
         </a>
+        {{ if eq $c.Type "atproto" }}
+          <p class="theme-login-notice">By signing in, you agree to Federate’s <a href="{{ url $.ReqPath "static/legal/terms.html" }}">Terms of Service</a> and acknowledge its <a href="{{ url $.ReqPath "static/legal/privacy.html" }}">Privacy Policy</a>.</p>
+        {{ end }}
       </div>
     {{ end }}
   </div>
