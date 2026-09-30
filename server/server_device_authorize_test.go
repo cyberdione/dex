@@ -130,6 +130,8 @@ func TestVerifyCodeResponse(t *testing.T) {
 	tests := []struct {
 		testName             string
 		testDeviceRequest    storage.DeviceRequest
+		devicePKCE           storage.PKCE
+		withDeviceToken      bool
 		userCode             string
 		expectedResponseCode int
 		expectedAuthPath     string
@@ -184,6 +186,38 @@ func TestVerifyCodeResponse(t *testing.T) {
 			expectedResponseCode: http.StatusFound,
 			expectedAuthPath:     "/auth",
 			shouldRedirectToAuth: true,
+			withDeviceToken:      true,
+		},
+		{
+			testName: "Device PKCE challenge is forwarded to authorization",
+			testDeviceRequest: storage.DeviceRequest{
+				UserCode:   "ABCD-WXYZ",
+				DeviceCode: "f00bar",
+				ClientID:   "testclient",
+				Scopes:     []string{"openid", "profile"},
+				Expiry:     now().Add(5 * time.Minute),
+			},
+			devicePKCE: storage.PKCE{
+				CodeChallenge:       strings.Repeat("a", 43),
+				CodeChallengeMethod: "S256",
+			},
+			withDeviceToken:      true,
+			userCode:             "ABCD-WXYZ",
+			expectedResponseCode: http.StatusFound,
+			expectedAuthPath:     "/auth",
+			shouldRedirectToAuth: true,
+		},
+		{
+			testName: "Missing device token cannot reach authorization",
+			testDeviceRequest: storage.DeviceRequest{
+				UserCode:   "ABCD-WXYZ",
+				DeviceCode: "f00bar",
+				ClientID:   "testclient",
+				Scopes:     []string{"openid"},
+				Expiry:     now().Add(5 * time.Minute),
+			},
+			userCode:             "ABCD-WXYZ",
+			expectedResponseCode: http.StatusBadRequest,
 		},
 	}
 	for _, tc := range tests {
@@ -199,6 +233,15 @@ func TestVerifyCodeResponse(t *testing.T) {
 
 			if err := s.storage.CreateDeviceRequest(ctx, tc.testDeviceRequest); err != nil {
 				t.Fatalf("Failed to store device token %v", err)
+			}
+			if tc.withDeviceToken {
+				if err := s.storage.CreateDeviceToken(ctx, storage.DeviceToken{
+					DeviceCode: tc.testDeviceRequest.DeviceCode,
+					Expiry:     tc.testDeviceRequest.Expiry,
+					PKCE:       tc.devicePKCE,
+				}); err != nil {
+					t.Fatalf("Failed to store device token %v", err)
+				}
 			}
 
 			u, err := url.Parse(s.issuerURL.String())
@@ -235,6 +278,12 @@ func TestVerifyCodeResponse(t *testing.T) {
 				// Check that redirect_uri parameter contains /device/callback
 				if !strings.Contains(location, "redirect_uri=%2Fnon-root-path%2Fdevice%2Fcallback") {
 					t.Errorf("Invalid redirect_uri parameter. Expected to contain /device/callback (URL encoded), got %v", location)
+				}
+				if got := redirectURL.Query().Get("code_challenge"); got != tc.devicePKCE.CodeChallenge {
+					t.Errorf("code_challenge = %q, want %q", got, tc.devicePKCE.CodeChallenge)
+				}
+				if got := redirectURL.Query().Get("code_challenge_method"); got != tc.devicePKCE.CodeChallengeMethod {
+					t.Errorf("code_challenge_method = %q, want %q", got, tc.devicePKCE.CodeChallengeMethod)
 				}
 			}
 		})
