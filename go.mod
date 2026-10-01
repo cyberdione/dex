@@ -160,3 +160,7 @@ require (
 replace github.com/dexidp/dex/api/v2 => ./api/v2
 
 tool entgo.io/ent/cmd/ent
+
+// Backdate confidential client assertion iat by five seconds for strict PDS clocks.
+// Drop this replacement once upstream Indigo includes the fix.
+replace github.com/bluesky-social/indigo => github.com/cyberdione/indigo v0.0.0-20261001141108-ba3c36cd193a
