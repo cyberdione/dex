@@ -90,6 +90,24 @@
   margin: 16px auto;
 }
 
+.theme-signup-link {
+  font-size: 14px;
+  margin: 14px auto 0;
+  max-width: 300px;
+  text-align: center;
+}
+
+.theme-signup-link a {
+  color: #993a15;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.theme-signup-link a:focus-visible {
+  outline: 3px solid #993a15;
+  outline-offset: 3px;
+}
+
 .theme-login-notice {
   color: #5f5a4f;
   font-size: 12px;
