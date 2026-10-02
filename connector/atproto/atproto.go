@@ -187,7 +187,7 @@ func (c *atprotoConnector) CallbackCompleted(w http.ResponseWriter, r *http.Requ
 // never rewritten, keeping ID token subjects stable across refreshes; the
 // handle claims follow the current verified state of the DID document.
 func (c *atprotoConnector) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
-	did, err := syntax.ParseAtIdentifier(strings.ToLower(strings.TrimSpace(identity.UserID)))
+	did, err := syntax.ParseAtIdentifier(strings.TrimSpace(identity.UserID))
 	if err != nil || !did.IsDID() {
 		return connector.Identity{}, fmt.Errorf("atproto refresh requires a DID subject")
 	}

@@ -96,7 +96,7 @@ func rosterDirectory() *fakeDirectory {
 func TestRefreshRosterModeReattests(t *testing.T) {
 	dir := rosterDirectory()
 	c := refreshConnector(t, false, refreshRoster, dir)
-	identity, err := c.Refresh(context.Background(), connector.Scopes{OfflineAccess: true, Groups: true}, connector.Identity{UserID: "did:plc:aaaaaaaaaaaaaaaaaaaaa", Username: "alice.example", Groups: []string{"workshop-attendee"}})
+	identity, err := c.Refresh(context.Background(), connector.Scopes{OfflineAccess: true, Groups: true}, connector.Identity{UserID: "did:plc:aaaaaaaaaaaaaaaaaaaaa", Username: "alice.stale.example", Groups: []string{"workshop-attendee"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,10 +117,11 @@ func TestRefreshRosterModeReattests(t *testing.T) {
 func TestRefreshRosterModeFailsClosed(t *testing.T) {
 	did := "did:plc:aaaaaaaaaaaaaaaaaaaaa"
 	tests := []struct {
-		name    string
-		roster  string
-		dir     identity.Directory
-		subject string
+		name         string
+		roster       string
+		dir          identity.Directory
+		subject      string
+		noRosterFile bool
 	}{
 		{
 			name:    "subject is a handle",
@@ -185,10 +186,33 @@ attendees:
 			dir:     &fakeDirectory{lookupErr: map[string]error{"alice.example": fmt.Errorf("resolution failed")}},
 			subject: did,
 		},
+		{
+			name:         "roster file unreadable",
+			roster:       refreshRoster,
+			dir:          rosterDirectory(),
+			subject:      did,
+			noRosterFile: true,
+		},
+		{
+			name: "roster entry has malformed expiry",
+			roster: `workshop: ws-test
+version: 1
+attendees:
+  - did: did:plc:aaaaaaaaaaaaaaaaaaaaa
+    handle: alice.example
+    enabled: true
+    validUntil: "not-a-timestamp"
+`,
+			dir:     rosterDirectory(),
+			subject: did,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := refreshConnector(t, false, tt.roster, tt.dir)
+			if tt.noRosterFile {
+				c.config.RosterFile = filepath.Join(t.TempDir(), "missing-roster.yaml")
+			}
 			if _, err := c.Refresh(context.Background(), connector.Scopes{OfflineAccess: true}, connector.Identity{UserID: tt.subject, Username: "alice.example"}); err == nil {
 				t.Fatal("expected refresh to fail closed")
 			}
@@ -243,6 +267,13 @@ func TestRefreshOpenModeFailsClosed(t *testing.T) {
 			name:    "subject is not a DID",
 			dir:     &fakeDirectory{},
 			subject: "not-a-did",
+		},
+		{
+			name: "DID resolves to a different DID",
+			dir: &fakeDirectory{byDID: map[string]*identity.Identity{
+				"did:plc:eeeeeeeeeeeeeeeeeeeeeee": verifiedIdentity("did:plc:fffffffffffffffffffffff", "eve.example"),
+			}},
+			subject: "did:plc:eeeeeeeeeeeeeeeeeeeeeee",
 		},
 	}
 	for _, tt := range tests {
