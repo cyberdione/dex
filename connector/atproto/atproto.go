@@ -126,12 +126,10 @@ var (
 	_ connector.CallbackConnector         = (*atprotoConnector)(nil)
 	_ connector.HTTPHandlerConnector      = (*atprotoConnector)(nil)
 	_ connector.CallbackCompletionHandler = (*atprotoConnector)(nil)
+	_ connector.RefreshConnector          = (*atprotoConnector)(nil)
 )
 
 func (c *atprotoConnector) LoginURL(scopes connector.Scopes, callbackURL, dexState string) (string, []byte, error) {
-	if scopes.OfflineAccess {
-		return "", nil, fmt.Errorf("atproto connector does not support offline_access")
-	}
 	if dexState == "" {
 		return "", nil, fmt.Errorf("missing Dex authorization state")
 	}
@@ -155,9 +153,6 @@ func (c *atprotoConnector) LoginURL(scopes connector.Scopes, callbackURL, dexSta
 }
 
 func (c *atprotoConnector) HandleCallback(scopes connector.Scopes, connData []byte, r *http.Request) (connector.Identity, error) {
-	if scopes.OfflineAccess {
-		return connector.Identity{}, fmt.Errorf("atproto connector does not support offline_access")
-	}
 	txID := string(connData)
 	if !validID(txID) || len(r.URL.Query()["state"]) != 1 || len(r.URL.Query()["ticket"]) != 1 {
 		return connector.Identity{}, fmt.Errorf("invalid atproto completion")
@@ -180,6 +175,53 @@ func (c *atprotoConnector) CallbackCompleted(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	http.SetCookie(w, &http.Cookie{Name: cookieName(txID), Value: "", Path: cookiePath(c.base.Path), Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: -1})
+}
+
+// Refresh implements connector.RefreshConnector. It re-attests a previously
+// issued identity without user interaction: the subject DID is re-resolved
+// through the AT Protocol directory and, in roster mode, the roster entry is
+// re-read and re-verified, mirroring the checks the OAuth callback applies
+// after authorization. A deleted account, an unresolvable DID, a handle that
+// no longer verifies against the DID, or a disabled/expired roster entry
+// fails closed and denies the refresh. The subject (UserID) is the DID and is
+// never rewritten, keeping ID token subjects stable across refreshes; the
+// handle claims follow the current verified state of the DID document.
+func (c *atprotoConnector) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
+	did, err := syntax.ParseAtIdentifier(strings.ToLower(strings.TrimSpace(identity.UserID)))
+	if err != nil || !did.IsDID() {
+		return connector.Identity{}, fmt.Errorf("atproto refresh requires a DID subject")
+	}
+	var handle string
+	if c.config.AllowUnlistedAccounts {
+		if err := c.client.Dir.Purge(ctx, did); err != nil {
+			return connector.Identity{}, fmt.Errorf("purge atproto DID cache: %w", err)
+		}
+		verified, err := c.client.Dir.Lookup(ctx, did)
+		if err != nil {
+			return connector.Identity{}, fmt.Errorf("resolve atproto DID: %w", err)
+		}
+		if verified == nil || verified.DID.String() != did.String() {
+			return connector.Identity{}, fmt.Errorf("atproto DID resolution mismatch")
+		}
+		// Lookup by DID reports a failed bidirectional handle verification as
+		// the handle.invalid sentinel instead of an error. Treat it as a
+		// failed re-attestation: the handle can no longer be verified against
+		// the DID, so the identity must not be silently extended.
+		if verified.Handle.IsInvalidHandle() {
+			return connector.Identity{}, fmt.Errorf("atproto handle no longer verifies against the DID")
+		}
+		handle = verified.Handle.String()
+	} else {
+		current, err := c.rosterEntry(did.String())
+		if err == nil {
+			err = c.verifyRosterIdentity(ctx, current)
+		}
+		if err != nil {
+			return connector.Identity{}, fmt.Errorf("atproto roster identity no longer verified: %w", err)
+		}
+		handle = current.Handle
+	}
+	return identityForVerifiedAccount(did.String(), handle, c.config.AllowUnlistedAccounts), nil
 }
 
 // ConnectorHTTPHandler serves only the finite protocol routes owned by this
