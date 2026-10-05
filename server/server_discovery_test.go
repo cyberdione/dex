@@ -67,6 +67,7 @@ func TestHandleDiscovery(t *testing.T) {
 		AuthMethods: []string{
 			"client_secret_basic",
 			"client_secret_post",
+			"none",
 		},
 		Claims: []string{
 			"iss",
