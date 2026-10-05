@@ -144,7 +144,8 @@ func (h *Handler) Construct(ctx context.Context) Document {
 		IDTokenAlgs:       []string{string(jose.RS256)},
 		CodeChallengeAlgs: h.PKCEMethods,
 		Scopes:            []string{"openid", "email", "groups", "profile", "offline_access"},
-		AuthMethods:       []string{"client_secret_basic", "client_secret_post"},
+		// Registered public clients redeem PKCE codes without a client secret.
+		AuthMethods: []string{"client_secret_basic", "client_secret_post", "none"},
 		Claims: []string{
 			"iss", "sub", "aud", "iat", "exp", "email", "email_verified",
 			"locale", "name", "preferred_username", "at_hash", "groups",
