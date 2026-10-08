@@ -49,6 +49,7 @@ func TestConstruct(t *testing.T) {
 	require.Equal(t, []string{"authorization_code", "refresh_token"}, doc.GrantTypes)
 	require.Equal(t, []string{"S256", "plain"}, doc.CodeChallengeAlgs)
 	require.Equal(t, []string{string(jose.RS256)}, doc.IDTokenAlgs)
+	require.Equal(t, []string{"client_secret_basic", "client_secret_post", "none"}, doc.AuthMethods)
 	// end_session_endpoint is present only when sessions are enabled.
 	require.Equal(t, "https://dex.example.com/logout", doc.EndSession)
 }

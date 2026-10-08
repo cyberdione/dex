@@ -97,7 +97,9 @@ CMD ["dex", "serve", "/etc/dex/config.docker.yaml"]
 # resolution and writes those secrets to the in-memory runtime directory.
 FROM docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS cyberdione
 
-RUN apk add --no-cache python3 py3-boto3
+# Keep the runtime above the Alpine security fixes; this also invalidates
+# cached apk layers that predate the patched v3.24 Python package.
+RUN apk add --no-cache 'python3>=3.14.8-r0' py3-boto3
 RUN addgroup -g 1001 -S dex && adduser -u 1001 -S -G dex -D -H -s /sbin/nologin dex
 COPY --from=runtime /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=runtime --chown=1001:1001 /var/dex /var/dex
