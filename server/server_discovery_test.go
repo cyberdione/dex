@@ -63,6 +63,7 @@ func TestHandleDiscovery(t *testing.T) {
 			"groups",
 			"profile",
 			"offline_access",
+			"federated:id",
 		},
 		AuthMethods: []string{
 			"client_secret_basic",
