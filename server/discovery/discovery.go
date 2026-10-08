@@ -17,6 +17,7 @@ import (
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/templates"
+	"github.com/dexidp/dex/server/tokens"
 )
 
 // Handler serves the discovery document and the JWKS. Like every other domain
@@ -143,7 +144,7 @@ func (h *Handler) Construct(ctx context.Context) Document {
 		Subjects:          []string{"public"},
 		IDTokenAlgs:       []string{string(jose.RS256)},
 		CodeChallengeAlgs: h.PKCEMethods,
-		Scopes:            []string{"openid", "email", "groups", "profile", "offline_access"},
+		Scopes:            []string{"openid", "email", "groups", "profile", "offline_access", tokens.ScopeFederatedID},
 		// Registered public clients redeem PKCE codes without a client secret.
 		AuthMethods: []string{"client_secret_basic", "client_secret_post", "none"},
 		Claims: []string{
