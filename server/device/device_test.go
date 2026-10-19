@@ -93,6 +93,8 @@ func TestValidateBindingKey(t *testing.T) {
 		{"embedded CR", TestBindingKey[:10] + "\r" + TestBindingKey[10:], true},
 		{"embedded LF", TestBindingKey[:10] + "\n" + TestBindingKey[10:], true},
 		{"embedded CRLF", TestBindingKey[:10] + "\r\n" + TestBindingKey[10:], true},
+		{"leading CRLF", "\r\n" + TestBindingKey, true},
+		{"trailing CRLF", TestBindingKey + "\r\n", true},
 	}
 
 	for _, tc := range tests {

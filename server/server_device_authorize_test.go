@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/server/device"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -31,6 +32,9 @@ func TestHandleDeviceCode(t *testing.T) {
 		expectedResponseCode   int
 		expectedContentType    string
 		expectedServerResponse string
+		// expectedError, when set, is the OAuth2 error code the JSON rejection
+		// body must carry (checked in addition to status and content type).
+		expectedError string
 	}{
 		{
 			testName:             "New Code",
@@ -85,7 +89,8 @@ func TestHandleDeviceCode(t *testing.T) {
 			// ignores them, so they must be rejected by the canonical check at
 			// the authorization step, never persisted or signed (review
 			// finding 1). The form encoder percent-encodes them, as a real
-			// client would.
+			// client would. Full 3x3 matrix: leading/trailing/embedded x
+			// CR/LF/CRLF (re-verify finding 1).
 			testName:             "Binding key with leading CR",
 			clientID:             "test",
 			requestType:          "POST",
@@ -93,6 +98,37 @@ func TestHandleDeviceCode(t *testing.T) {
 			bindingKey:           "\r" + deviceBindingKey,
 			expectedResponseCode: http.StatusBadRequest,
 			expectedContentType:  "application/json",
+			expectedError:        oauth2.InvalidRequest,
+		},
+		{
+			testName:             "Binding key with leading LF",
+			clientID:             "test",
+			requestType:          "POST",
+			scopes:               []string{"openid", "profile", "email"},
+			bindingKey:           "\n" + deviceBindingKey,
+			expectedResponseCode: http.StatusBadRequest,
+			expectedContentType:  "application/json",
+			expectedError:        oauth2.InvalidRequest,
+		},
+		{
+			testName:             "Binding key with leading CRLF",
+			clientID:             "test",
+			requestType:          "POST",
+			scopes:               []string{"openid", "profile", "email"},
+			bindingKey:           "\r\n" + deviceBindingKey,
+			expectedResponseCode: http.StatusBadRequest,
+			expectedContentType:  "application/json",
+			expectedError:        oauth2.InvalidRequest,
+		},
+		{
+			testName:             "Binding key with trailing CR",
+			clientID:             "test",
+			requestType:          "POST",
+			scopes:               []string{"openid", "profile", "email"},
+			bindingKey:           deviceBindingKey + "\r",
+			expectedResponseCode: http.StatusBadRequest,
+			expectedContentType:  "application/json",
+			expectedError:        oauth2.InvalidRequest,
 		},
 		{
 			testName:             "Binding key with trailing LF",
@@ -102,6 +138,37 @@ func TestHandleDeviceCode(t *testing.T) {
 			bindingKey:           deviceBindingKey + "\n",
 			expectedResponseCode: http.StatusBadRequest,
 			expectedContentType:  "application/json",
+			expectedError:        oauth2.InvalidRequest,
+		},
+		{
+			testName:             "Binding key with trailing CRLF",
+			clientID:             "test",
+			requestType:          "POST",
+			scopes:               []string{"openid", "profile", "email"},
+			bindingKey:           deviceBindingKey + "\r\n",
+			expectedResponseCode: http.StatusBadRequest,
+			expectedContentType:  "application/json",
+			expectedError:        oauth2.InvalidRequest,
+		},
+		{
+			testName:             "Binding key with embedded CR",
+			clientID:             "test",
+			requestType:          "POST",
+			scopes:               []string{"openid", "profile", "email"},
+			bindingKey:           deviceBindingKey[:10] + "\r" + deviceBindingKey[10:],
+			expectedResponseCode: http.StatusBadRequest,
+			expectedContentType:  "application/json",
+			expectedError:        oauth2.InvalidRequest,
+		},
+		{
+			testName:             "Binding key with embedded LF",
+			clientID:             "test",
+			requestType:          "POST",
+			scopes:               []string{"openid", "profile", "email"},
+			bindingKey:           deviceBindingKey[:10] + "\n" + deviceBindingKey[10:],
+			expectedResponseCode: http.StatusBadRequest,
+			expectedContentType:  "application/json",
+			expectedError:        oauth2.InvalidRequest,
 		},
 		{
 			testName:             "Binding key with embedded CRLF",
@@ -111,6 +178,7 @@ func TestHandleDeviceCode(t *testing.T) {
 			bindingKey:           deviceBindingKey[:10] + "\r\n" + deviceBindingKey[10:],
 			expectedResponseCode: http.StatusBadRequest,
 			expectedContentType:  "application/json",
+			expectedError:        oauth2.InvalidRequest,
 		},
 		{
 			testName:             "Invalid request Type (GET)",
@@ -193,6 +261,11 @@ func TestHandleDeviceCode(t *testing.T) {
 				if err := json.Unmarshal(body, &resp); err != nil {
 					t.Errorf("Unexpected Device Code Response Format %v", string(body))
 				}
+			}
+			if tc.expectedError != "" {
+				// The rejection must be a well-formed OAuth2 error carrying the
+				// expected code, not just any 400.
+				expectJSONErrorResponse(tc.testName, body, tc.expectedError, t)
 			}
 		})
 	}
