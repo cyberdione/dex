@@ -83,6 +83,16 @@ func TestValidateBindingKey(t *testing.T) {
 		{"wrong byte count", base64.RawURLEncoding.EncodeToString([]byte("31_bytes_____________________________")), true},
 		{"not base64 at all", "!!!!not-base64~~~~", true},
 		{"non-canonical trailing bits", TestBindingKey[:42] + "h", true},
+		// Go's base64 decoder ignores CR and LF, so decoding alone accepts
+		// whitespace-carrying spellings of a valid key; the canonical
+		// round-trip check must reject every one of them (review finding 1).
+		{"leading CR", "\r" + TestBindingKey, true},
+		{"leading LF", "\n" + TestBindingKey, true},
+		{"trailing CR", TestBindingKey + "\r", true},
+		{"trailing LF", TestBindingKey + "\n", true},
+		{"embedded CR", TestBindingKey[:10] + "\r" + TestBindingKey[10:], true},
+		{"embedded LF", TestBindingKey[:10] + "\n" + TestBindingKey[10:], true},
+		{"embedded CRLF", TestBindingKey[:10] + "\r\n" + TestBindingKey[10:], true},
 	}
 
 	for _, tc := range tests {

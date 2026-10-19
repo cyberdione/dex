@@ -70,11 +70,45 @@ func TestHandleDeviceCode(t *testing.T) {
 			expectedContentType:  "application/json",
 		},
 		{
+			// Unpadded standard alphabet carrying actual "+" and "/" — rejected
+			// on alphabet alone, independent of padding.
 			testName:             "Binding key in the standard alphabet",
 			clientID:             "test",
 			requestType:          "POST",
 			scopes:               []string{"openid", "profile", "email"},
-			bindingKey:           "c3RhbmRhcmQtYWxwaGFiZXQtYmFzZTY0LWtleS1wYWRkaW5nPT0=",
+			bindingKey:           "+//v+//v+//v+//v+//v+//v+//v+//v+//v+//v+/8",
+			expectedResponseCode: http.StatusBadRequest,
+			expectedContentType:  "application/json",
+		},
+		{
+			// CR/LF spellings of an otherwise valid key: Go's base64 decoder
+			// ignores them, so they must be rejected by the canonical check at
+			// the authorization step, never persisted or signed (review
+			// finding 1). The form encoder percent-encodes them, as a real
+			// client would.
+			testName:             "Binding key with leading CR",
+			clientID:             "test",
+			requestType:          "POST",
+			scopes:               []string{"openid", "profile", "email"},
+			bindingKey:           "\r" + deviceBindingKey,
+			expectedResponseCode: http.StatusBadRequest,
+			expectedContentType:  "application/json",
+		},
+		{
+			testName:             "Binding key with trailing LF",
+			clientID:             "test",
+			requestType:          "POST",
+			scopes:               []string{"openid", "profile", "email"},
+			bindingKey:           deviceBindingKey + "\n",
+			expectedResponseCode: http.StatusBadRequest,
+			expectedContentType:  "application/json",
+		},
+		{
+			testName:             "Binding key with embedded CRLF",
+			clientID:             "test",
+			requestType:          "POST",
+			scopes:               []string{"openid", "profile", "email"},
+			bindingKey:           deviceBindingKey[:10] + "\r\n" + deviceBindingKey[10:],
 			expectedResponseCode: http.StatusBadRequest,
 			expectedContentType:  "application/json",
 		},

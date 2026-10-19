@@ -130,20 +130,30 @@ const bindingKeyLength = 32
 
 // validateBindingKey parses the optional binding_key device authorization
 // parameter: a public Ed25519 key, base64url-encoded (RFC 4648 §5) without
-// padding, which is 43 characters for 32 bytes. The encoding is fixed — the
-// standard alphabet, padding, or any other spelling of the same bytes is
-// rejected — so the claim echoes a canonical string the verifier can compare
+// padding, which is 43 characters for 32 bytes. The input must be the one
+// canonical spelling: exactly 43 characters, strict-decodable to exactly 32
+// bytes, and byte-identical to its own re-encoding. The round-trip check is
+// what makes the spelling unique — Go's base64 decoder ignores CR and LF
+// inside the input, so decode success plus a 32-byte result alone would accept
+// "\r<key>", "<key>\n", and embedded-CRLF spellings of the same bytes, which
+// would then be persisted and issuer-signed verbatim. Anything that is not the
+// canonical spelling (CR/LF in any position, padding, the standard alphabet's
+// "+" and "/", wrong length, non-canonical trailing bits) is rejected, never
+// normalized, so the claim echoes a string the verifier can compare
 // byte-for-byte. The key is public and never a secret.
 func validateBindingKey(s string) (string, *deviceFlowError) {
 	if s == "" {
 		return "", nil
 	}
 	raw, err := base64.RawURLEncoding.Strict().DecodeString(s)
-	if err != nil || len(raw) != bindingKeyLength {
+	if err != nil ||
+		len(raw) != bindingKeyLength ||
+		len(s) != base64.RawURLEncoding.EncodedLen(bindingKeyLength) ||
+		base64.RawURLEncoding.EncodeToString(raw) != s {
 		return "", &deviceFlowError{
 			status:  http.StatusBadRequest,
 			code:    oauth2.InvalidRequest,
-			message: fmt.Sprintf("Malformed binding_key: must be %d raw bytes, base64url-encoded (RFC 4648 §5, unpadded).", bindingKeyLength),
+			message: fmt.Sprintf("Malformed binding_key: must be exactly %d raw bytes in their single canonical spelling, base64url-encoded (RFC 4648 §5, unpadded).", bindingKeyLength),
 		}
 	}
 	return s, nil
