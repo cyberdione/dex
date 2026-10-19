@@ -50,6 +50,20 @@ func (_c *DeviceRequestCreate) SetScopes(v []string) *DeviceRequestCreate {
 	return _c
 }
 
+// SetBindingKey sets the "binding_key" field.
+func (_c *DeviceRequestCreate) SetBindingKey(v string) *DeviceRequestCreate {
+	_c.mutation.SetBindingKey(v)
+	return _c
+}
+
+// SetNillableBindingKey sets the "binding_key" field if the given value is not nil.
+func (_c *DeviceRequestCreate) SetNillableBindingKey(v *string) *DeviceRequestCreate {
+	if v != nil {
+		_c.SetBindingKey(*v)
+	}
+	return _c
+}
+
 // SetExpiry sets the "expiry" field.
 func (_c *DeviceRequestCreate) SetExpiry(v time.Time) *DeviceRequestCreate {
 	_c.mutation.SetExpiry(v)
@@ -63,6 +77,7 @@ func (_c *DeviceRequestCreate) Mutation() *DeviceRequestMutation {
 
 // Save creates the DeviceRequest in the database.
 func (_c *DeviceRequestCreate) Save(ctx context.Context) (*DeviceRequest, error) {
+	_c.defaults()
 	return withHooks(ctx, _c.sqlSave, _c.mutation, _c.hooks)
 }
 
@@ -85,6 +100,14 @@ func (_c *DeviceRequestCreate) Exec(ctx context.Context) error {
 func (_c *DeviceRequestCreate) ExecX(ctx context.Context) {
 	if err := _c.Exec(ctx); err != nil {
 		panic(err)
+	}
+}
+
+// defaults sets the default values of the builder before save.
+func (_c *DeviceRequestCreate) defaults() {
+	if _, ok := _c.mutation.BindingKey(); !ok {
+		v := devicerequest.DefaultBindingKey
+		_c.mutation.SetBindingKey(v)
 	}
 }
 
@@ -121,6 +144,9 @@ func (_c *DeviceRequestCreate) check() error {
 		if err := devicerequest.ClientSecretValidator(v); err != nil {
 			return &ValidationError{Name: "client_secret", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.client_secret": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.BindingKey(); !ok {
+		return &ValidationError{Name: "binding_key", err: errors.New(`db: missing required field "DeviceRequest.binding_key"`)}
 	}
 	if _, ok := _c.mutation.Expiry(); !ok {
 		return &ValidationError{Name: "expiry", err: errors.New(`db: missing required field "DeviceRequest.expiry"`)}
@@ -171,6 +197,10 @@ func (_c *DeviceRequestCreate) createSpec() (*DeviceRequest, *sqlgraph.CreateSpe
 		_spec.SetField(devicerequest.FieldScopes, field.TypeJSON, value)
 		_node.Scopes = value
 	}
+	if value, ok := _c.mutation.BindingKey(); ok {
+		_spec.SetField(devicerequest.FieldBindingKey, field.TypeString, value)
+		_node.BindingKey = value
+	}
 	if value, ok := _c.mutation.Expiry(); ok {
 		_spec.SetField(devicerequest.FieldExpiry, field.TypeTime, value)
 		_node.Expiry = value
@@ -196,6 +226,7 @@ func (_c *DeviceRequestCreateBulk) Save(ctx context.Context) ([]*DeviceRequest, 
 	for i := range _c.builders {
 		func(i int, root context.Context) {
 			builder := _c.builders[i]
+			builder.defaults()
 			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 				mutation, ok := m.(*DeviceRequestMutation)
 				if !ok {

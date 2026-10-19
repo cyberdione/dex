@@ -131,6 +131,7 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 		Scopes:      scopes,
 		ConnectorID: refreshToken.ConnectorID,
 		Nonce:       refreshToken.Nonce,
+		BindingKey:  refreshToken.BindingKey,
 		AuthTime:    authTime,
 		SessionID:   sessionID,
 	}

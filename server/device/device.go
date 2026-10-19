@@ -3,6 +3,7 @@ package device
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -120,6 +121,32 @@ type deviceCodeRequest struct {
 	clientSecret string
 	scopes       []string
 	pkce         storage.PKCE
+	bindingKey   string
+}
+
+// bindingKeyLength is the size of an Ed25519 public key in bytes: a binding_key
+// must decode to exactly this many bytes.
+const bindingKeyLength = 32
+
+// validateBindingKey parses the optional binding_key device authorization
+// parameter: a public Ed25519 key, base64url-encoded (RFC 4648 §5) without
+// padding, which is 43 characters for 32 bytes. The encoding is fixed — the
+// standard alphabet, padding, or any other spelling of the same bytes is
+// rejected — so the claim echoes a canonical string the verifier can compare
+// byte-for-byte. The key is public and never a secret.
+func validateBindingKey(s string) (string, *deviceFlowError) {
+	if s == "" {
+		return "", nil
+	}
+	raw, err := base64.RawURLEncoding.Strict().DecodeString(s)
+	if err != nil || len(raw) != bindingKeyLength {
+		return "", &deviceFlowError{
+			status:  http.StatusBadRequest,
+			code:    oauth2.InvalidRequest,
+			message: fmt.Sprintf("Malformed binding_key: must be %d raw bytes, base64url-encoded (RFC 4648 §5, unpadded).", bindingKeyLength),
+		}
+	}
+	return s, nil
 }
 
 // parseDeviceCodeRequest parses and validates the /device/code form.
@@ -147,6 +174,14 @@ func (h *Handler) parseDeviceCodeRequest(r *http.Request) (deviceCodeRequest, *d
 		scopes = []string{"openid"}
 	}
 
+	// The optional holder-key binding (see validateBindingKey). Rejected here, at
+	// the authorization step, so a malformed key never reaches storage or the
+	// token mint.
+	bindingKey, ferr := validateBindingKey(r.Form.Get("binding_key"))
+	if ferr != nil {
+		return deviceCodeRequest{}, ferr
+	}
+
 	return deviceCodeRequest{
 		clientID:     r.Form.Get("client_id"),
 		clientSecret: r.Form.Get("client_secret"),
@@ -155,6 +190,7 @@ func (h *Handler) parseDeviceCodeRequest(r *http.Request) (deviceCodeRequest, *d
 			CodeChallenge:       r.Form.Get("code_challenge"),
 			CodeChallengeMethod: method,
 		},
+		bindingKey: bindingKey,
 	}, nil
 }
 
@@ -174,6 +210,7 @@ func (h *Handler) createDeviceAuthorization(ctx context.Context, req deviceCodeR
 		ClientSecret: req.clientSecret,
 		Scopes:       req.scopes,
 		Expiry:       expireTime,
+		BindingKey:   req.bindingKey,
 	}); err != nil {
 		h.Logger.ErrorContext(ctx, "failed to store device request", "err", err)
 		return nil, &deviceFlowError{status: http.StatusInternalServerError, code: oauth2.InvalidRequest}
@@ -392,6 +429,15 @@ func (h *Handler) completeDeviceAuthorization(w http.ResponseWriter, r *http.Req
 		h.Logger.ErrorContext(ctx, "could not exchange auth code for client", "client_id", deviceReq.ClientID, "err", err)
 		return "", &deviceFlowError{status: http.StatusInternalServerError, message: "Failed to exchange auth code."}
 	}
+
+	// Holder-key binding (device flow only): the key the device submitted with
+	// its authorization request is issuer-signed into the ID token as the
+	// binding_key claim, exactly as nonce binds the code flow. This is the only
+	// grant that sets Authorization.BindingKey, so no other flow mints the claim.
+	// The value is the validated public key from the stored device request, not
+	// anything the browser callback carries.
+	auth.BindingKey = deviceReq.BindingKey
+
 	resp, err := h.Issuer.IssueResponse(ctx, auth, authCode.ID, withRefresh)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "could not issue tokens for device flow", "client_id", deviceReq.ClientID, "err", err)

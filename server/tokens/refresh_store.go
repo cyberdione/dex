@@ -31,13 +31,16 @@ func NewRefreshStore(storage storage.Storage, now func() time.Time, logger *slog
 // rolled back so no orphaned token is left behind.
 func (rt *RefreshStore) Create(ctx context.Context, auth Authorization) (string, error) {
 	refresh := storage.RefreshToken{
-		ID:            storage.NewID(),
-		Token:         storage.NewID(),
-		ClientID:      auth.Client.ID,
-		ConnectorID:   auth.ConnectorID,
-		Scopes:        auth.Scopes,
-		Claims:        auth.Claims,
-		Nonce:         auth.Nonce,
+		ID:          storage.NewID(),
+		Token:       storage.NewID(),
+		ClientID:    auth.Client.ID,
+		ConnectorID: auth.ConnectorID,
+		Scopes:      auth.Scopes,
+		Claims:      auth.Claims,
+		Nonce:       auth.Nonce,
+		BindingKey:  auth.BindingKey,
+		// Recorded at mint so a refreshed ID token keeps the holder-key binding
+		// of the token it refreshes; empty for every flow but a bound device flow.
 		ConnectorData: auth.ConnectorData,
 		CreatedAt:     rt.now(),
 		LastUsed:      rt.now(),

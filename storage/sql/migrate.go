@@ -507,4 +507,18 @@ var migrations = []migration{
 			`alter table auth_code add column session_id text not null default '';`,
 		},
 	},
+	{
+		// Holder-key binding for the device flow: the optional binding_key
+		// submitted with a device authorization request is persisted with it and
+		// echoed in the minted ID token's "binding_key" claim; the refresh token
+		// records it so a refreshed ID token keeps the same binding.
+		stmts: []string{
+			`
+			alter table device_request
+				add column binding_key text not null default '';`,
+			`
+			alter table refresh_token
+				add column binding_key text not null default '';`,
+		},
+	},
 }

@@ -102,12 +102,13 @@ func (i *Issuer) SignIDToken(ctx context.Context, auth Authorization, accessToke
 	}
 
 	tok := IDTokenClaims{
-		Issuer:   i.issuerURL.String(),
-		Subject:  subjectString,
-		Nonce:    auth.Nonce,
-		Expiry:   expiry.Unix(),
-		IssuedAt: issuedAt.Unix(),
-		JWTID:    uuid.New().String(),
+		Issuer:     i.issuerURL.String(),
+		Subject:    subjectString,
+		Nonce:      auth.Nonce,
+		BindingKey: auth.BindingKey,
+		Expiry:     expiry.Unix(),
+		IssuedAt:   issuedAt.Unix(),
+		JWTID:      uuid.New().String(),
 	}
 
 	if !auth.AuthTime.IsZero() {

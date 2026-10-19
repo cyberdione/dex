@@ -320,16 +320,16 @@ func (c *conn) CreateRefresh(ctx context.Context, r storage.RefreshToken) error 
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
-			token, obsolete_token, created_at, last_used
+			token, obsolete_token, created_at, last_used, binding_key
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17);
 	`,
 		r.ID, r.ClientID, encoder(r.Scopes), r.Nonce,
 		r.Claims.UserID, r.Claims.Username, r.Claims.PreferredUsername,
 		r.Claims.Email, r.Claims.EmailVerified,
 		encoder(r.Claims.Groups),
 		r.ConnectorID, r.ConnectorData,
-		r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed,
+		r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed, r.BindingKey,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -366,16 +366,17 @@ func (c *conn) UpdateRefreshToken(ctx context.Context, id string, updater func(o
 				token = $12,
                 obsolete_token = $13,
 				created_at = $14,
-				last_used = $15
+				last_used = $15,
+				binding_key = $16
 			where
-				id = $16
+				id = $17
 		`,
 			r.ClientID, encoder(r.Scopes), r.Nonce,
 			r.Claims.UserID, r.Claims.Username, r.Claims.PreferredUsername,
 			r.Claims.Email, r.Claims.EmailVerified,
 			encoder(r.Claims.Groups),
 			r.ConnectorID, r.ConnectorData,
-			r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed, id,
+			r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed, r.BindingKey, id,
 		)
 		if err != nil {
 			return fmt.Errorf("update refresh token: %v", err)
@@ -396,7 +397,7 @@ func getRefresh(ctx context.Context, q querier, id string) (storage.RefreshToken
 			claims_email, claims_email_verified,
 			claims_groups,
 			connector_id, connector_data,
-			token, obsolete_token, created_at, last_used
+			token, obsolete_token, created_at, last_used, binding_key
 		from refresh_token where id = $1;
 	`, id))
 }
@@ -408,7 +409,7 @@ func (c *conn) ListRefreshTokens(ctx context.Context) ([]storage.RefreshToken, e
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
-			token, obsolete_token, created_at, last_used
+			token, obsolete_token, created_at, last_used, binding_key
 		from refresh_token;
 	`)
 	if err != nil {
@@ -437,7 +438,7 @@ func scanRefresh(s scanner) (r storage.RefreshToken, err error) {
 		&r.Claims.Email, &r.Claims.EmailVerified,
 		decoder(&r.Claims.Groups),
 		&r.ConnectorID, &r.ConnectorData,
-		&r.Token, &r.ObsoleteToken, &r.CreatedAt, &r.LastUsed,
+		&r.Token, &r.ObsoleteToken, &r.CreatedAt, &r.LastUsed, &r.BindingKey,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -1321,12 +1322,12 @@ func (c *conn) delete(table, field, id string) error {
 func (c *conn) CreateDeviceRequest(ctx context.Context, d storage.DeviceRequest) error {
 	_, err := c.Exec(`
 		insert into device_request (
-			user_code, device_code, client_id, client_secret, scopes, expiry
+			user_code, device_code, client_id, client_secret, scopes, expiry, binding_key
 		)
 		values (
-			$1, $2, $3, $4, $5, $6
+			$1, $2, $3, $4, $5, $6, $7
 		);`,
-		d.UserCode, d.DeviceCode, d.ClientID, d.ClientSecret, encoder(d.Scopes), d.Expiry,
+		d.UserCode, d.DeviceCode, d.ClientID, d.ClientSecret, encoder(d.Scopes), d.Expiry, d.BindingKey,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -1363,10 +1364,10 @@ func (c *conn) GetDeviceRequest(ctx context.Context, userCode string) (storage.D
 func getDeviceRequest(ctx context.Context, q querier, userCode string) (d storage.DeviceRequest, err error) {
 	err = q.QueryRow(`
 		select
-            device_code, client_id, client_secret, scopes, expiry
+            device_code, client_id, client_secret, scopes, expiry, binding_key
 		from device_request where user_code = $1;
 	`, userCode).Scan(
-		&d.DeviceCode, &d.ClientID, &d.ClientSecret, decoder(&d.Scopes), &d.Expiry,
+		&d.DeviceCode, &d.ClientID, &d.ClientSecret, decoder(&d.Scopes), &d.Expiry, &d.BindingKey,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {

@@ -13,6 +13,7 @@ func (d *Database) CreateRefresh(ctx context.Context, refresh storage.RefreshTok
 		SetClientID(refresh.ClientID).
 		SetScopes(refresh.Scopes).
 		SetNonce(refresh.Nonce).
+		SetBindingKey(refresh.BindingKey).
 		SetClaimsUserID(refresh.Claims.UserID).
 		SetClaimsEmail(refresh.Claims.Email).
 		SetClaimsEmailVerified(refresh.Claims.EmailVerified).
@@ -86,6 +87,7 @@ func (d *Database) UpdateRefreshToken(ctx context.Context, id string, updater fu
 		SetClientID(newtToken.ClientID).
 		SetScopes(newtToken.Scopes).
 		SetNonce(newtToken.Nonce).
+		SetBindingKey(newtToken.BindingKey).
 		SetClaimsUserID(newtToken.Claims.UserID).
 		SetClaimsEmail(newtToken.Claims.Email).
 		SetClaimsEmailVerified(newtToken.Claims.EmailVerified).

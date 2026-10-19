@@ -27,6 +27,7 @@ func TestHandleDeviceCode(t *testing.T) {
 		codeChallengeMethod    string
 		requestType            string
 		scopes                 []string
+		bindingKey             string
 		expectedResponseCode   int
 		expectedContentType    string
 		expectedServerResponse string
@@ -37,6 +38,44 @@ func TestHandleDeviceCode(t *testing.T) {
 			requestType:          "POST",
 			scopes:               []string{"openid", "profile", "email"},
 			expectedResponseCode: http.StatusOK,
+			expectedContentType:  "application/json",
+		},
+		{
+			testName:             "New Code with valid binding key",
+			clientID:             "test",
+			requestType:          "POST",
+			scopes:               []string{"openid", "profile", "email"},
+			bindingKey:           deviceBindingKey,
+			expectedResponseCode: http.StatusOK,
+			expectedContentType:  "application/json",
+		},
+		{
+			// A malformed binding_key is rejected at the authorization step,
+			// before anything is stored or minted.
+			testName:             "Malformed binding key",
+			clientID:             "test",
+			requestType:          "POST",
+			scopes:               []string{"openid", "profile", "email"},
+			bindingKey:           "not-base64!!",
+			expectedResponseCode: http.StatusBadRequest,
+			expectedContentType:  "application/json",
+		},
+		{
+			testName:             "Binding key with wrong byte count",
+			clientID:             "test",
+			requestType:          "POST",
+			scopes:               []string{"openid", "profile", "email"},
+			bindingKey:           "c2hvcnQ", // decodes, but to 5 bytes
+			expectedResponseCode: http.StatusBadRequest,
+			expectedContentType:  "application/json",
+		},
+		{
+			testName:             "Binding key in the standard alphabet",
+			clientID:             "test",
+			requestType:          "POST",
+			scopes:               []string{"openid", "profile", "email"},
+			bindingKey:           "c3RhbmRhcmQtYWxwaGFiZXQtYmFzZTY0LWtleS1wYWRkaW5nPT0=",
+			expectedResponseCode: http.StatusBadRequest,
 			expectedContentType:  "application/json",
 		},
 		{
@@ -92,6 +131,9 @@ func TestHandleDeviceCode(t *testing.T) {
 			data := url.Values{}
 			data.Set("client_id", tc.clientID)
 			data.Set("code_challenge_method", tc.codeChallengeMethod)
+			if tc.bindingKey != "" {
+				data.Set("binding_key", tc.bindingKey)
+			}
 			for _, scope := range tc.scopes {
 				data.Add("scope", scope)
 			}

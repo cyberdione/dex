@@ -175,7 +175,8 @@ type RefreshToken struct {
 
 	Scopes []string `json:"scopes"`
 
-	Nonce string `json:"nonce"`
+	Nonce      string `json:"nonce"`
+	BindingKey string `json:"binding_key,omitempty"`
 }
 
 func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
@@ -190,6 +191,7 @@ func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
 		ConnectorData: r.ConnectorData,
 		Scopes:        r.Scopes,
 		Nonce:         r.Nonce,
+		BindingKey:    r.BindingKey,
 		Claims:        toStorageClaims(r.Claims),
 	}
 }
@@ -206,6 +208,7 @@ func fromStorageRefreshToken(r storage.RefreshToken) RefreshToken {
 		ConnectorData: r.ConnectorData,
 		Scopes:        r.Scopes,
 		Nonce:         r.Nonce,
+		BindingKey:    r.BindingKey,
 		Claims:        fromStorageClaims(r.Claims),
 	}
 }
@@ -389,6 +392,7 @@ type DeviceRequest struct {
 	ClientSecret string    `json:"client_secret"`
 	Scopes       []string  `json:"scopes"`
 	Expiry       time.Time `json:"expiry"`
+	BindingKey   string    `json:"binding_key,omitempty"`
 }
 
 func fromStorageDeviceRequest(d storage.DeviceRequest) DeviceRequest {
@@ -399,6 +403,7 @@ func fromStorageDeviceRequest(d storage.DeviceRequest) DeviceRequest {
 		ClientSecret: d.ClientSecret,
 		Scopes:       d.Scopes,
 		Expiry:       d.Expiry,
+		BindingKey:   d.BindingKey,
 	}
 }
 
@@ -410,6 +415,7 @@ func toStorageDeviceRequest(d DeviceRequest) storage.DeviceRequest {
 		ClientSecret: d.ClientSecret,
 		Scopes:       d.Scopes,
 		Expiry:       d.Expiry,
+		BindingKey:   d.BindingKey,
 	}
 }
 

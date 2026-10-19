@@ -70,6 +70,13 @@ type IDTokenClaims struct {
 	Nonce            string   `json:"nonce,omitempty"`
 	AuthTime         int64    `json:"auth_time,omitempty"`
 
+	// BindingKey is the device flow's holder-key binding: the public Ed25519 key
+	// the device submitted with its device authorization request (base64url,
+	// RFC 4648 §5, unpadded), echoed issuer-signed so a verifier can check
+	// token-claim key == possession key. Present only in device-flow ID tokens
+	// minted for a request that carried one.
+	BindingKey string `json:"binding_key,omitempty"`
+
 	// SessionID is the OIDC "sid" claim: the browser session this token was issued
 	// under. Present only when sessions are enabled. It lets an RP correlate a
 	// back-channel logout token with the session it holds, and lets dex tell a

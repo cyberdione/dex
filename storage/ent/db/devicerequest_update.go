@@ -103,6 +103,20 @@ func (_u *DeviceRequestUpdate) ClearScopes() *DeviceRequestUpdate {
 	return _u
 }
 
+// SetBindingKey sets the "binding_key" field.
+func (_u *DeviceRequestUpdate) SetBindingKey(v string) *DeviceRequestUpdate {
+	_u.mutation.SetBindingKey(v)
+	return _u
+}
+
+// SetNillableBindingKey sets the "binding_key" field if the given value is not nil.
+func (_u *DeviceRequestUpdate) SetNillableBindingKey(v *string) *DeviceRequestUpdate {
+	if v != nil {
+		_u.SetBindingKey(*v)
+	}
+	return _u
+}
+
 // SetExpiry sets the "expiry" field.
 func (_u *DeviceRequestUpdate) SetExpiry(v time.Time) *DeviceRequestUpdate {
 	_u.mutation.SetExpiry(v)
@@ -209,6 +223,9 @@ func (_u *DeviceRequestUpdate) sqlSave(ctx context.Context) (_node int, err erro
 	if _u.mutation.ScopesCleared() {
 		_spec.ClearField(devicerequest.FieldScopes, field.TypeJSON)
 	}
+	if value, ok := _u.mutation.BindingKey(); ok {
+		_spec.SetField(devicerequest.FieldBindingKey, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.Expiry(); ok {
 		_spec.SetField(devicerequest.FieldExpiry, field.TypeTime, value)
 	}
@@ -303,6 +320,20 @@ func (_u *DeviceRequestUpdateOne) AppendScopes(v []string) *DeviceRequestUpdateO
 // ClearScopes clears the value of the "scopes" field.
 func (_u *DeviceRequestUpdateOne) ClearScopes() *DeviceRequestUpdateOne {
 	_u.mutation.ClearScopes()
+	return _u
+}
+
+// SetBindingKey sets the "binding_key" field.
+func (_u *DeviceRequestUpdateOne) SetBindingKey(v string) *DeviceRequestUpdateOne {
+	_u.mutation.SetBindingKey(v)
+	return _u
+}
+
+// SetNillableBindingKey sets the "binding_key" field if the given value is not nil.
+func (_u *DeviceRequestUpdateOne) SetNillableBindingKey(v *string) *DeviceRequestUpdateOne {
+	if v != nil {
+		_u.SetBindingKey(*v)
+	}
 	return _u
 }
 
@@ -441,6 +472,9 @@ func (_u *DeviceRequestUpdateOne) sqlSave(ctx context.Context) (_node *DeviceReq
 	}
 	if _u.mutation.ScopesCleared() {
 		_spec.ClearField(devicerequest.FieldScopes, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.BindingKey(); ok {
+		_spec.SetField(devicerequest.FieldBindingKey, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Expiry(); ok {
 		_spec.SetField(devicerequest.FieldExpiry, field.TypeTime, value)
