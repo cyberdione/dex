@@ -6,7 +6,7 @@ FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.3-alpine3.24@sha256
 
 COPY --from=xx / /
 
-RUN apk add --update alpine-sdk ca-certificates openssl clang lld
+RUN apk add --update alpine-sdk ca-certificates openssl clang lld && apk upgrade --no-cache ca-certificates-bundle
 
 ARG TARGETPLATFORM
 
@@ -97,7 +97,7 @@ CMD ["dex", "serve", "/etc/dex/config.docker.yaml"]
 # resolution and writes those secrets to the in-memory runtime directory.
 FROM docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS cyberdione
 
-RUN apk add --no-cache python3 py3-boto3
+RUN apk upgrade --no-cache ca-certificates-bundle && apk add --no-cache python3 py3-boto3
 RUN addgroup -g 1001 -S dex && adduser -u 1001 -S -G dex -D -H -s /sbin/nologin dex
 COPY --from=runtime /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=runtime --chown=1001:1001 /var/dex /var/dex
