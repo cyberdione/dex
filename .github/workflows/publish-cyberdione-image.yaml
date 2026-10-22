@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [ewindisch/atproto]
   push:
-    branches: [ewindisch/atproto]
+    branches: [ewindisch/atproto, reconcile/union-ci-gates-20261022]
 
 permissions:
   contents: read
