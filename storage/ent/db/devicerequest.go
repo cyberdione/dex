@@ -28,6 +28,8 @@ type DeviceRequest struct {
 	ClientSecret string `json:"client_secret,omitempty"`
 	// Scopes holds the value of the "scopes" field.
 	Scopes []string `json:"scopes,omitempty"`
+	// Optional holder-key binding: the device's public Ed25519 key, base64url-encoded, echoed in the ID token's binding_key claim.
+	BindingKey string `json:"binding_key,omitempty"`
 	// Expiry holds the value of the "expiry" field.
 	Expiry       time.Time `json:"expiry,omitempty"`
 	selectValues sql.SelectValues
@@ -42,7 +44,7 @@ func (*DeviceRequest) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case devicerequest.FieldID:
 			values[i] = new(sql.NullInt64)
-		case devicerequest.FieldUserCode, devicerequest.FieldDeviceCode, devicerequest.FieldClientID, devicerequest.FieldClientSecret:
+		case devicerequest.FieldUserCode, devicerequest.FieldDeviceCode, devicerequest.FieldClientID, devicerequest.FieldClientSecret, devicerequest.FieldBindingKey:
 			values[i] = new(sql.NullString)
 		case devicerequest.FieldExpiry:
 			values[i] = new(sql.NullTime)
@@ -98,6 +100,12 @@ func (_m *DeviceRequest) assignValues(columns []string, values []any) error {
 				if err := json.Unmarshal(*value, &_m.Scopes); err != nil {
 					return fmt.Errorf("unmarshal field scopes: %w", err)
 				}
+			}
+		case devicerequest.FieldBindingKey:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field binding_key", values[i])
+			} else if value.Valid {
+				_m.BindingKey = value.String
 			}
 		case devicerequest.FieldExpiry:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -155,6 +163,9 @@ func (_m *DeviceRequest) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("scopes=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Scopes))
+	builder.WriteString(", ")
+	builder.WriteString("binding_key=")
+	builder.WriteString(_m.BindingKey)
 	builder.WriteString(", ")
 	builder.WriteString("expiry=")
 	builder.WriteString(_m.Expiry.Format(time.ANSIC))

@@ -176,6 +176,10 @@ func init() {
 	devicerequestDescClientSecret := devicerequestFields[3].Descriptor()
 	// devicerequest.ClientSecretValidator is a validator for the "client_secret" field. It is called by the builders before save.
 	devicerequest.ClientSecretValidator = devicerequestDescClientSecret.Validators[0].(func(string) error)
+	// devicerequestDescBindingKey is the schema descriptor for binding_key field.
+	devicerequestDescBindingKey := devicerequestFields[5].Descriptor()
+	// devicerequest.DefaultBindingKey holds the default value on creation for the binding_key field.
+	devicerequest.DefaultBindingKey = devicerequestDescBindingKey.Default.(string)
 	devicetokenFields := schema.DeviceToken{}.Fields()
 	_ = devicetokenFields
 	// devicetokenDescDeviceCode is the schema descriptor for device_code field.
@@ -286,40 +290,44 @@ func init() {
 	refreshtokenDescNonce := refreshtokenFields[3].Descriptor()
 	// refreshtoken.NonceValidator is a validator for the "nonce" field. It is called by the builders before save.
 	refreshtoken.NonceValidator = refreshtokenDescNonce.Validators[0].(func(string) error)
+	// refreshtokenDescBindingKey is the schema descriptor for binding_key field.
+	refreshtokenDescBindingKey := refreshtokenFields[4].Descriptor()
+	// refreshtoken.DefaultBindingKey holds the default value on creation for the binding_key field.
+	refreshtoken.DefaultBindingKey = refreshtokenDescBindingKey.Default.(string)
 	// refreshtokenDescClaimsUserID is the schema descriptor for claims_user_id field.
-	refreshtokenDescClaimsUserID := refreshtokenFields[4].Descriptor()
+	refreshtokenDescClaimsUserID := refreshtokenFields[5].Descriptor()
 	// refreshtoken.ClaimsUserIDValidator is a validator for the "claims_user_id" field. It is called by the builders before save.
 	refreshtoken.ClaimsUserIDValidator = refreshtokenDescClaimsUserID.Validators[0].(func(string) error)
 	// refreshtokenDescClaimsUsername is the schema descriptor for claims_username field.
-	refreshtokenDescClaimsUsername := refreshtokenFields[5].Descriptor()
+	refreshtokenDescClaimsUsername := refreshtokenFields[6].Descriptor()
 	// refreshtoken.ClaimsUsernameValidator is a validator for the "claims_username" field. It is called by the builders before save.
 	refreshtoken.ClaimsUsernameValidator = refreshtokenDescClaimsUsername.Validators[0].(func(string) error)
 	// refreshtokenDescClaimsEmail is the schema descriptor for claims_email field.
-	refreshtokenDescClaimsEmail := refreshtokenFields[6].Descriptor()
+	refreshtokenDescClaimsEmail := refreshtokenFields[7].Descriptor()
 	// refreshtoken.ClaimsEmailValidator is a validator for the "claims_email" field. It is called by the builders before save.
 	refreshtoken.ClaimsEmailValidator = refreshtokenDescClaimsEmail.Validators[0].(func(string) error)
 	// refreshtokenDescClaimsPreferredUsername is the schema descriptor for claims_preferred_username field.
-	refreshtokenDescClaimsPreferredUsername := refreshtokenFields[9].Descriptor()
+	refreshtokenDescClaimsPreferredUsername := refreshtokenFields[10].Descriptor()
 	// refreshtoken.DefaultClaimsPreferredUsername holds the default value on creation for the claims_preferred_username field.
 	refreshtoken.DefaultClaimsPreferredUsername = refreshtokenDescClaimsPreferredUsername.Default.(string)
 	// refreshtokenDescConnectorID is the schema descriptor for connector_id field.
-	refreshtokenDescConnectorID := refreshtokenFields[10].Descriptor()
+	refreshtokenDescConnectorID := refreshtokenFields[11].Descriptor()
 	// refreshtoken.ConnectorIDValidator is a validator for the "connector_id" field. It is called by the builders before save.
 	refreshtoken.ConnectorIDValidator = refreshtokenDescConnectorID.Validators[0].(func(string) error)
 	// refreshtokenDescToken is the schema descriptor for token field.
-	refreshtokenDescToken := refreshtokenFields[12].Descriptor()
+	refreshtokenDescToken := refreshtokenFields[13].Descriptor()
 	// refreshtoken.DefaultToken holds the default value on creation for the token field.
 	refreshtoken.DefaultToken = refreshtokenDescToken.Default.(string)
 	// refreshtokenDescObsoleteToken is the schema descriptor for obsolete_token field.
-	refreshtokenDescObsoleteToken := refreshtokenFields[13].Descriptor()
+	refreshtokenDescObsoleteToken := refreshtokenFields[14].Descriptor()
 	// refreshtoken.DefaultObsoleteToken holds the default value on creation for the obsolete_token field.
 	refreshtoken.DefaultObsoleteToken = refreshtokenDescObsoleteToken.Default.(string)
 	// refreshtokenDescCreatedAt is the schema descriptor for created_at field.
-	refreshtokenDescCreatedAt := refreshtokenFields[14].Descriptor()
+	refreshtokenDescCreatedAt := refreshtokenFields[15].Descriptor()
 	// refreshtoken.DefaultCreatedAt holds the default value on creation for the created_at field.
 	refreshtoken.DefaultCreatedAt = refreshtokenDescCreatedAt.Default.(func() time.Time)
 	// refreshtokenDescLastUsed is the schema descriptor for last_used field.
-	refreshtokenDescLastUsed := refreshtokenFields[15].Descriptor()
+	refreshtokenDescLastUsed := refreshtokenFields[16].Descriptor()
 	// refreshtoken.DefaultLastUsed holds the default value on creation for the last_used field.
 	refreshtoken.DefaultLastUsed = refreshtokenDescLastUsed.Default.(func() time.Time)
 	// refreshtokenDescID is the schema descriptor for id field.

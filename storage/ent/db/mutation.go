@@ -4704,6 +4704,7 @@ type DeviceRequestMutation struct {
 	client_secret *string
 	scopes        *[]string
 	appendscopes  []string
+	binding_key   *string
 	expiry        *time.Time
 	clearedFields map[string]struct{}
 	done          bool
@@ -5018,6 +5019,42 @@ func (m *DeviceRequestMutation) ResetScopes() {
 	delete(m.clearedFields, devicerequest.FieldScopes)
 }
 
+// SetBindingKey sets the "binding_key" field.
+func (m *DeviceRequestMutation) SetBindingKey(s string) {
+	m.binding_key = &s
+}
+
+// BindingKey returns the value of the "binding_key" field in the mutation.
+func (m *DeviceRequestMutation) BindingKey() (r string, exists bool) {
+	v := m.binding_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBindingKey returns the old "binding_key" field's value of the DeviceRequest entity.
+// If the DeviceRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeviceRequestMutation) OldBindingKey(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBindingKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBindingKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBindingKey: %w", err)
+	}
+	return oldValue.BindingKey, nil
+}
+
+// ResetBindingKey resets all changes to the "binding_key" field.
+func (m *DeviceRequestMutation) ResetBindingKey() {
+	m.binding_key = nil
+}
+
 // SetExpiry sets the "expiry" field.
 func (m *DeviceRequestMutation) SetExpiry(t time.Time) {
 	m.expiry = &t
@@ -5088,7 +5125,7 @@ func (m *DeviceRequestMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *DeviceRequestMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 7)
 	if m.user_code != nil {
 		fields = append(fields, devicerequest.FieldUserCode)
 	}
@@ -5103,6 +5140,9 @@ func (m *DeviceRequestMutation) Fields() []string {
 	}
 	if m.scopes != nil {
 		fields = append(fields, devicerequest.FieldScopes)
+	}
+	if m.binding_key != nil {
+		fields = append(fields, devicerequest.FieldBindingKey)
 	}
 	if m.expiry != nil {
 		fields = append(fields, devicerequest.FieldExpiry)
@@ -5125,6 +5165,8 @@ func (m *DeviceRequestMutation) Field(name string) (ent.Value, bool) {
 		return m.ClientSecret()
 	case devicerequest.FieldScopes:
 		return m.Scopes()
+	case devicerequest.FieldBindingKey:
+		return m.BindingKey()
 	case devicerequest.FieldExpiry:
 		return m.Expiry()
 	}
@@ -5146,6 +5188,8 @@ func (m *DeviceRequestMutation) OldField(ctx context.Context, name string) (ent.
 		return m.OldClientSecret(ctx)
 	case devicerequest.FieldScopes:
 		return m.OldScopes(ctx)
+	case devicerequest.FieldBindingKey:
+		return m.OldBindingKey(ctx)
 	case devicerequest.FieldExpiry:
 		return m.OldExpiry(ctx)
 	}
@@ -5191,6 +5235,13 @@ func (m *DeviceRequestMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetScopes(v)
+		return nil
+	case devicerequest.FieldBindingKey:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBindingKey(v)
 		return nil
 	case devicerequest.FieldExpiry:
 		v, ok := value.(time.Time)
@@ -5271,6 +5322,9 @@ func (m *DeviceRequestMutation) ResetField(name string) error {
 		return nil
 	case devicerequest.FieldScopes:
 		m.ResetScopes()
+		return nil
+	case devicerequest.FieldBindingKey:
+		m.ResetBindingKey()
 		return nil
 	case devicerequest.FieldExpiry:
 		m.ResetExpiry()
@@ -9143,6 +9197,7 @@ type RefreshTokenMutation struct {
 	scopes                    *[]string
 	appendscopes              []string
 	nonce                     *string
+	binding_key               *string
 	claims_user_id            *string
 	claims_username           *string
 	claims_email              *string
@@ -9401,6 +9456,42 @@ func (m *RefreshTokenMutation) OldNonce(ctx context.Context) (v string, err erro
 // ResetNonce resets all changes to the "nonce" field.
 func (m *RefreshTokenMutation) ResetNonce() {
 	m.nonce = nil
+}
+
+// SetBindingKey sets the "binding_key" field.
+func (m *RefreshTokenMutation) SetBindingKey(s string) {
+	m.binding_key = &s
+}
+
+// BindingKey returns the value of the "binding_key" field in the mutation.
+func (m *RefreshTokenMutation) BindingKey() (r string, exists bool) {
+	v := m.binding_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBindingKey returns the old "binding_key" field's value of the RefreshToken entity.
+// If the RefreshToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RefreshTokenMutation) OldBindingKey(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBindingKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBindingKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBindingKey: %w", err)
+	}
+	return oldValue.BindingKey, nil
+}
+
+// ResetBindingKey resets all changes to the "binding_key" field.
+func (m *RefreshTokenMutation) ResetBindingKey() {
+	m.binding_key = nil
 }
 
 // SetClaimsUserID sets the "claims_user_id" field.
@@ -9911,7 +10002,7 @@ func (m *RefreshTokenMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RefreshTokenMutation) Fields() []string {
-	fields := make([]string, 0, 15)
+	fields := make([]string, 0, 16)
 	if m.client_id != nil {
 		fields = append(fields, refreshtoken.FieldClientID)
 	}
@@ -9920,6 +10011,9 @@ func (m *RefreshTokenMutation) Fields() []string {
 	}
 	if m.nonce != nil {
 		fields = append(fields, refreshtoken.FieldNonce)
+	}
+	if m.binding_key != nil {
+		fields = append(fields, refreshtoken.FieldBindingKey)
 	}
 	if m.claims_user_id != nil {
 		fields = append(fields, refreshtoken.FieldClaimsUserID)
@@ -9971,6 +10065,8 @@ func (m *RefreshTokenMutation) Field(name string) (ent.Value, bool) {
 		return m.Scopes()
 	case refreshtoken.FieldNonce:
 		return m.Nonce()
+	case refreshtoken.FieldBindingKey:
+		return m.BindingKey()
 	case refreshtoken.FieldClaimsUserID:
 		return m.ClaimsUserID()
 	case refreshtoken.FieldClaimsUsername:
@@ -10010,6 +10106,8 @@ func (m *RefreshTokenMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldScopes(ctx)
 	case refreshtoken.FieldNonce:
 		return m.OldNonce(ctx)
+	case refreshtoken.FieldBindingKey:
+		return m.OldBindingKey(ctx)
 	case refreshtoken.FieldClaimsUserID:
 		return m.OldClaimsUserID(ctx)
 	case refreshtoken.FieldClaimsUsername:
@@ -10063,6 +10161,13 @@ func (m *RefreshTokenMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetNonce(v)
+		return nil
+	case refreshtoken.FieldBindingKey:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBindingKey(v)
 		return nil
 	case refreshtoken.FieldClaimsUserID:
 		v, ok := value.(string)
@@ -10226,6 +10331,9 @@ func (m *RefreshTokenMutation) ResetField(name string) error {
 		return nil
 	case refreshtoken.FieldNonce:
 		m.ResetNonce()
+		return nil
+	case refreshtoken.FieldBindingKey:
+		m.ResetBindingKey()
 		return nil
 	case refreshtoken.FieldClaimsUserID:
 		m.ResetClaimsUserID()

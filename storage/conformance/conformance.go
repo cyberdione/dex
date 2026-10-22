@@ -444,6 +444,7 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 		Token:         "bar",
 		ObsoleteToken: "",
 		Nonce:         "foo",
+		BindingKey:    "YmluZGluZ19rZXlfY29uZm9ybWFuY2VfMzJfYnl0ZXM",
 		ClientID:      "client_id",
 		ConnectorID:   "client_secret",
 		Scopes:        []string{"openid", "email", "profile"},
@@ -1232,6 +1233,9 @@ func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
 		ClientSecret: "secret1",
 		Scopes:       []string{"openid", "email"},
 		Expiry:       neverExpire.Round(time.Second),
+		// Holder-key binding: the device flow's optional public key must
+		// round-trip like any other field, since the ID-token mint echoes it.
+		BindingKey: "YmluZGluZ19rZXlfY29uZm9ybWFuY2VfMzJfYnl0ZXM",
 	}
 
 	if err := s.CreateDeviceRequest(ctx, d1); err != nil {

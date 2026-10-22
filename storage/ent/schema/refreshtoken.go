@@ -49,6 +49,10 @@ func (RefreshToken) Fields() []ent.Field {
 		field.Text("nonce").
 			SchemaType(textSchema).
 			NotEmpty(),
+		field.Text("binding_key").
+			SchemaType(textSchema).
+			Default("").
+			Comment("Holder-key binding recorded at mint, so a refreshed ID token keeps the device flow's binding_key claim."),
 
 		field.Text("claims_user_id").
 			SchemaType(textSchema).

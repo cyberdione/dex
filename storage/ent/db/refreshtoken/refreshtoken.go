@@ -19,6 +19,8 @@ const (
 	FieldScopes = "scopes"
 	// FieldNonce holds the string denoting the nonce field in the database.
 	FieldNonce = "nonce"
+	// FieldBindingKey holds the string denoting the binding_key field in the database.
+	FieldBindingKey = "binding_key"
 	// FieldClaimsUserID holds the string denoting the claims_user_id field in the database.
 	FieldClaimsUserID = "claims_user_id"
 	// FieldClaimsUsername holds the string denoting the claims_username field in the database.
@@ -53,6 +55,7 @@ var Columns = []string{
 	FieldClientID,
 	FieldScopes,
 	FieldNonce,
+	FieldBindingKey,
 	FieldClaimsUserID,
 	FieldClaimsUsername,
 	FieldClaimsEmail,
@@ -82,6 +85,8 @@ var (
 	ClientIDValidator func(string) error
 	// NonceValidator is a validator for the "nonce" field. It is called by the builders before save.
 	NonceValidator func(string) error
+	// DefaultBindingKey holds the default value on creation for the "binding_key" field.
+	DefaultBindingKey string
 	// ClaimsUserIDValidator is a validator for the "claims_user_id" field. It is called by the builders before save.
 	ClaimsUserIDValidator func(string) error
 	// ClaimsUsernameValidator is a validator for the "claims_username" field. It is called by the builders before save.
@@ -120,6 +125,11 @@ func ByClientID(opts ...sql.OrderTermOption) OrderOption {
 // ByNonce orders the results by the nonce field.
 func ByNonce(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldNonce, opts...).ToFunc()
+}
+
+// ByBindingKey orders the results by the binding_key field.
+func ByBindingKey(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBindingKey, opts...).ToFunc()
 }
 
 // ByClaimsUserID orders the results by the claims_user_id field.

@@ -74,6 +74,11 @@ func Nonce(v string) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldEQ(FieldNonce, v))
 }
 
+// BindingKey applies equality check predicate on the "binding_key" field. It's identical to BindingKeyEQ.
+func BindingKey(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEQ(FieldBindingKey, v))
+}
+
 // ClaimsUserID applies equality check predicate on the "claims_user_id" field. It's identical to ClaimsUserIDEQ.
 func ClaimsUserID(v string) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldEQ(FieldClaimsUserID, v))
@@ -267,6 +272,71 @@ func NonceEqualFold(v string) predicate.RefreshToken {
 // NonceContainsFold applies the ContainsFold predicate on the "nonce" field.
 func NonceContainsFold(v string) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldContainsFold(FieldNonce, v))
+}
+
+// BindingKeyEQ applies the EQ predicate on the "binding_key" field.
+func BindingKeyEQ(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEQ(FieldBindingKey, v))
+}
+
+// BindingKeyNEQ applies the NEQ predicate on the "binding_key" field.
+func BindingKeyNEQ(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldNEQ(FieldBindingKey, v))
+}
+
+// BindingKeyIn applies the In predicate on the "binding_key" field.
+func BindingKeyIn(vs ...string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldIn(FieldBindingKey, vs...))
+}
+
+// BindingKeyNotIn applies the NotIn predicate on the "binding_key" field.
+func BindingKeyNotIn(vs ...string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldNotIn(FieldBindingKey, vs...))
+}
+
+// BindingKeyGT applies the GT predicate on the "binding_key" field.
+func BindingKeyGT(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldGT(FieldBindingKey, v))
+}
+
+// BindingKeyGTE applies the GTE predicate on the "binding_key" field.
+func BindingKeyGTE(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldGTE(FieldBindingKey, v))
+}
+
+// BindingKeyLT applies the LT predicate on the "binding_key" field.
+func BindingKeyLT(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldLT(FieldBindingKey, v))
+}
+
+// BindingKeyLTE applies the LTE predicate on the "binding_key" field.
+func BindingKeyLTE(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldLTE(FieldBindingKey, v))
+}
+
+// BindingKeyContains applies the Contains predicate on the "binding_key" field.
+func BindingKeyContains(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldContains(FieldBindingKey, v))
+}
+
+// BindingKeyHasPrefix applies the HasPrefix predicate on the "binding_key" field.
+func BindingKeyHasPrefix(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldHasPrefix(FieldBindingKey, v))
+}
+
+// BindingKeyHasSuffix applies the HasSuffix predicate on the "binding_key" field.
+func BindingKeyHasSuffix(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldHasSuffix(FieldBindingKey, v))
+}
+
+// BindingKeyEqualFold applies the EqualFold predicate on the "binding_key" field.
+func BindingKeyEqualFold(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEqualFold(FieldBindingKey, v))
+}
+
+// BindingKeyContainsFold applies the ContainsFold predicate on the "binding_key" field.
+func BindingKeyContainsFold(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldContainsFold(FieldBindingKey, v))
 }
 
 // ClaimsUserIDEQ applies the EQ predicate on the "claims_user_id" field.
