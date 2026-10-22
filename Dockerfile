@@ -2,11 +2,11 @@ ARG BASE_IMAGE=docker.io/library/alpine:3.24.2@sha256:294b683cb724975bec92580e1e
 
 FROM --platform=$BUILDPLATFORM docker.io/tonistiigi/xx:1.9.0@sha256:c64defb9ed5a91eacb37f96ccc3d4cd72521c4bd18d5442905b95e2226b0e707 AS xx
 
-FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.1-alpine3.24@sha256:e9bbdf282b51ac8b34c46e5f31d2d56e7bad60366c35f08d2f295b921b13388b AS builder
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.3-alpine3.24@sha256:f2c872bcee949b7be9c490efd02b48a8a2fbf947cdf533f1c58525ec9d8170fd AS builder
 
 COPY --from=xx / /
 
-RUN apk add --update alpine-sdk ca-certificates openssl clang lld
+RUN apk add --update alpine-sdk ca-certificates openssl clang lld && apk upgrade --no-cache ca-certificates ca-certificates-bundle
 
 ARG TARGETPLATFORM
 
