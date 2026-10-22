@@ -40,6 +40,10 @@ func (DeviceRequest) Fields() []ent.Field {
 			NotEmpty(),
 		field.JSON("scopes", []string{}).
 			Optional(),
+		field.Text("binding_key").
+			SchemaType(textSchema).
+			Default("").
+			Comment("Optional holder-key binding: the device's public Ed25519 key, base64url-encoded, echoed in the ID token's binding_key claim."),
 		field.Time("expiry").
 			SchemaType(timeSchema),
 	}

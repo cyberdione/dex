@@ -21,6 +21,8 @@ const (
 	FieldClientSecret = "client_secret"
 	// FieldScopes holds the string denoting the scopes field in the database.
 	FieldScopes = "scopes"
+	// FieldBindingKey holds the string denoting the binding_key field in the database.
+	FieldBindingKey = "binding_key"
 	// FieldExpiry holds the string denoting the expiry field in the database.
 	FieldExpiry = "expiry"
 	// Table holds the table name of the devicerequest in the database.
@@ -35,6 +37,7 @@ var Columns = []string{
 	FieldClientID,
 	FieldClientSecret,
 	FieldScopes,
+	FieldBindingKey,
 	FieldExpiry,
 }
 
@@ -57,6 +60,8 @@ var (
 	ClientIDValidator func(string) error
 	// ClientSecretValidator is a validator for the "client_secret" field. It is called by the builders before save.
 	ClientSecretValidator func(string) error
+	// DefaultBindingKey holds the default value on creation for the "binding_key" field.
+	DefaultBindingKey string
 )
 
 // OrderOption defines the ordering options for the DeviceRequest queries.
@@ -85,6 +90,11 @@ func ByClientID(opts ...sql.OrderTermOption) OrderOption {
 // ByClientSecret orders the results by the client_secret field.
 func ByClientSecret(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldClientSecret, opts...).ToFunc()
+}
+
+// ByBindingKey orders the results by the binding_key field.
+func ByBindingKey(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBindingKey, opts...).ToFunc()
 }
 
 // ByExpiry orders the results by the expiry field.

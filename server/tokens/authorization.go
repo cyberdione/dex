@@ -27,6 +27,13 @@ type Authorization struct {
 	// that user happens to have open to tokens minted by the password, token
 	// exchange and client credentials grants — none of which joined it.
 	SessionID string
+
+	// BindingKey is the holder-key binding emitted as the "binding_key" claim: the
+	// device's public Ed25519 key, submitted with its device authorization
+	// request and echoed issuer-signed inside the ID token, the way Nonce binds
+	// the code flow. Only the device flow sets it; no other grant may mint the
+	// claim.
+	BindingKey string
 }
 
 // TokenSet is what the /token endpoint returns for an Authorization.

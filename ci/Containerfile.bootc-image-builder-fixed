@@ -1,0 +1,29 @@
+# bootc-image-builder:latest's own base (Fedora 42 -- already EOL as of
+# 2026-05-27) ships libselinux 3.8 / libpcre2-8 too old to parse the
+# PCRE2-based file_contexts.bin regex format that Hummingbird's newer,
+# faster-moving selinux-policy now compiles ("setfiles: ... Regex version
+# mismatch, expected: 10.46 ... actual: 10.47" -- found on a real run,
+# reproducibly, in the "build" pipeline's org.osbuild.selinux stage, which
+# does a full recursive setfiles over a deployed copy of the target image).
+# That stage failing aborts the whole osbuild manifest -- no disk image is
+# produced at all, not a partial/incorrect one.
+#
+# Fix: vendor the matching setfiles + its shared libs straight from the
+# EXACT FerruleOS digest being converted (FERRULEOS_REF build-arg), rather
+# than fight dnf across incompatible repo generations. ferruleos/containers'
+# own Containerfile documents why mixing repos here is dangerous --
+# Hummingbird pins its own patched packages (e.g. its FIPS provider) that
+# conflict with a naive newer-repo pull at the resolver level. Vendoring the
+# exact binaries (not touching package management at all) sidesteps that
+# entirely, and pinning to FERRULEOS_REF instead of a fixed digest means
+# this stays correct automatically as Hummingbird's policy keeps moving --
+# no periodic re-pin needed here.
+#
+# Verified: `ldd` resolves cleanly (no more "no version information
+# available" warning on libpcre2-8.so.0) and a full `--type raw --in-vm`
+# build's org.osbuild.selinux stage completes past the regex-mismatch point
+# with this image in place of the stock one.
+FROM quay.io/centos-bootc/bootc-image-builder:latest
+ARG FERRULEOS_REF
+COPY --from=$FERRULEOS_REF /usr/sbin/setfiles /usr/sbin/setfiles
+COPY --from=$FERRULEOS_REF /usr/lib64/libselinux.so.1 /usr/lib64/libsepol.so.2 /usr/lib64/libpcre2-8.so.0 /usr/lib64/

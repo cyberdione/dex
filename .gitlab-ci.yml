@@ -1,0 +1,81 @@
+stages:
+  - validate
+  - image
+  - ami
+
+validate:identity-bootc:
+  stage: validate
+  image: quay.io/podman/stable:latest
+  tags:
+    - cyberdione-arm64-32gb-build
+  script:
+    - bash images/identity-bootc-os/tests/contract.sh
+    - bash -n images/identity-bootc-os/run-dex images/identity-bootc-os/dex-storage-init
+
+build:identity-bootc-arm64:
+  stage: image
+  image:
+    name: quay.io/podman/stable:latest
+    entrypoint: [""]
+  tags:
+    - cyberdione-arm64-32gb-build
+  variables:
+    STORAGE_DRIVER: vfs
+  needs:
+    - validate:identity-bootc
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  script:
+    - |
+      set -euo pipefail
+      test "$(uname -m)" = aarch64
+      test "$CI_PROJECT_PATH" = cyberdione/dex
+      caddy_ref="$(sed -n 's/^Image=//p' images/identity-bootc-os/caddy.container)"
+      [[ "$caddy_ref" =~ ^docker\.io/library/caddy@sha256:[0-9a-f]{64}$ ]]
+      podman pull --storage-driver "$STORAGE_DRIVER" --arch arm64 "$caddy_ref"
+      test "$(podman image inspect --storage-driver "$STORAGE_DRIVER" "$caddy_ref" --format '{{.Architecture}}')" = arm64
+      image="$CI_REGISTRY_IMAGE/identity-bootc-os:$CI_COMMIT_SHA"
+      podman build --storage-driver "$STORAGE_DRIVER" --isolation=chroot --layers=false \
+        --format oci -f images/identity-bootc-os/Containerfile -t "$image" \
+        images/identity-bootc-os
+      printf '%s' "$CI_REGISTRY_PASSWORD" | podman login --storage-driver "$STORAGE_DRIVER" \
+        --username "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+      podman push --storage-driver "$STORAGE_DRIVER" --digestfile identity-bootc-arm64.digest "$image"
+      test "$(cat identity-bootc-arm64.digest)" != ""
+  artifacts:
+    paths:
+      - identity-bootc-arm64.digest
+    expire_in: 7 days
+
+build:identity-ami-arm64:
+  stage: ami
+  image:
+    name: public.ecr.aws/aws-cli/aws-cli:latest
+    entrypoint: [""]
+  tags:
+    - cyberdione-amd64-16gb-build
+  needs:
+    - job: build:identity-bootc-arm64
+      artifacts: true
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: https://gitlab.com
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+  before_script:
+    - |
+      missing=""
+      for bin in curl jq; do command -v "$bin" >/dev/null 2>&1 || missing="$missing $bin"; done
+      if ! command -v ssh >/dev/null 2>&1 || ! command -v scp >/dev/null 2>&1; then
+        missing="$missing openssh-clients"
+      fi
+      if [ -n "$missing" ]; then yum -y install --allowerasing $missing >/dev/null; fi
+  script:
+    - bash ci/build-private-ami.sh
+  after_script:
+    - bash ci/cleanup-private-ami.sh
+  artifacts:
+    paths:
+      - identity-ami-id.txt
+    expire_in: 30 days
