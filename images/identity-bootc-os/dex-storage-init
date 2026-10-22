@@ -1,0 +1,23 @@
+#!/usr/bin/bash
+set -euo pipefail
+: "${DEX_DATA_VOLUME_ID:?missing DEX_DATA_VOLUME_ID in /etc/dex/deploy.env}"
+VOL_ID="$DEX_DATA_VOLUME_ID"
+DEVICE="/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$(printf '%s' "$VOL_ID" | tr -d '-')"
+
+for attempt in $(seq 1 60); do
+  [ -b "$DEVICE" ] && break
+  sleep 2
+done
+[ -b "$DEVICE" ] || { echo 'Dex data volume did not appear' >&2; exit 1; }
+
+if ! blkid "$DEVICE" >/dev/null 2>&1; then
+  mkfs.ext4 -F -m 0 "$DEVICE"
+fi
+mkdir -p /var/lib/dex
+mountpoint -q /var/lib/dex || mount "$DEVICE" /var/lib/dex
+mkdir -p /var/lib/dex/atproto /var/lib/dex/caddy/data /var/lib/dex/caddy/config
+chown -R 1001:1001 /var/lib/dex/atproto
+chown -R root:root /var/lib/dex/caddy
+chmod 0700 /var/lib/dex /var/lib/dex/atproto
+chmod 0700 /var/lib/dex/caddy
+chmod 0700 /var/lib/dex/caddy/data /var/lib/dex/caddy/config

@@ -38,6 +38,20 @@ func (_c *RefreshTokenCreate) SetNonce(v string) *RefreshTokenCreate {
 	return _c
 }
 
+// SetBindingKey sets the "binding_key" field.
+func (_c *RefreshTokenCreate) SetBindingKey(v string) *RefreshTokenCreate {
+	_c.mutation.SetBindingKey(v)
+	return _c
+}
+
+// SetNillableBindingKey sets the "binding_key" field if the given value is not nil.
+func (_c *RefreshTokenCreate) SetNillableBindingKey(v *string) *RefreshTokenCreate {
+	if v != nil {
+		_c.SetBindingKey(*v)
+	}
+	return _c
+}
+
 // SetClaimsUserID sets the "claims_user_id" field.
 func (_c *RefreshTokenCreate) SetClaimsUserID(v string) *RefreshTokenCreate {
 	_c.mutation.SetClaimsUserID(v)
@@ -191,6 +205,10 @@ func (_c *RefreshTokenCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *RefreshTokenCreate) defaults() {
+	if _, ok := _c.mutation.BindingKey(); !ok {
+		v := refreshtoken.DefaultBindingKey
+		_c.mutation.SetBindingKey(v)
+	}
 	if _, ok := _c.mutation.ClaimsPreferredUsername(); !ok {
 		v := refreshtoken.DefaultClaimsPreferredUsername
 		_c.mutation.SetClaimsPreferredUsername(v)
@@ -230,6 +248,9 @@ func (_c *RefreshTokenCreate) check() error {
 		if err := refreshtoken.NonceValidator(v); err != nil {
 			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "RefreshToken.nonce": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.BindingKey(); !ok {
+		return &ValidationError{Name: "binding_key", err: errors.New(`db: missing required field "RefreshToken.binding_key"`)}
 	}
 	if _, ok := _c.mutation.ClaimsUserID(); !ok {
 		return &ValidationError{Name: "claims_user_id", err: errors.New(`db: missing required field "RefreshToken.claims_user_id"`)}
@@ -332,6 +353,10 @@ func (_c *RefreshTokenCreate) createSpec() (*RefreshToken, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.Nonce(); ok {
 		_spec.SetField(refreshtoken.FieldNonce, field.TypeString, value)
 		_node.Nonce = value
+	}
+	if value, ok := _c.mutation.BindingKey(); ok {
+		_spec.SetField(refreshtoken.FieldBindingKey, field.TypeString, value)
+		_node.BindingKey = value
 	}
 	if value, ok := _c.mutation.ClaimsUserID(); ok {
 		_spec.SetField(refreshtoken.FieldClaimsUserID, field.TypeString, value)

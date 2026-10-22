@@ -1,0 +1,26 @@
+# Purpose-built immutable host image for the Cyberdione public OIDC issuer.
+# The generic FerruleOS layer remains the base; only stable host services and
+# the public web firewall policy belong here. Per-instance Dex config, EBS
+# identifiers, image digest, and secret ARN arrive in Ignition at first boot.
+FROM registry.gitlab.com/cyberdione/ferruleos/containers/ferruleos-bootc-os@sha256:4f21dd6528c2dfcf6016912ac5d719a98eae7e3ccbf341ab4d77175cd89ddb06
+
+COPY dex-storage-init /usr/local/sbin/dex-storage-init
+COPY run-dex /usr/local/sbin/run-dex
+COPY dex-storage-init.service /etc/systemd/system/dex-storage-init.service
+COPY dex.service /etc/systemd/system/dex.service
+COPY caddy.container /etc/containers/systemd/caddy.container
+COPY Caddyfile /etc/caddy/Caddyfile
+COPY rds-ca-rsa2048-g1.pem /etc/dex/rds-ca-rsa2048-g1.pem
+COPY public.xml /etc/firewalld/zones/public.xml
+COPY persistent.conf /etc/systemd/journald.conf.d/persistent.conf
+
+RUN chmod 0755 /usr/local/sbin/dex-storage-init /usr/local/sbin/run-dex \
+    && chmod 0644 /etc/systemd/system/dex-storage-init.service /etc/systemd/system/dex.service \
+         /etc/containers/systemd/caddy.container /etc/caddy/Caddyfile \
+         /etc/dex/rds-ca-rsa2048-g1.pem /etc/firewalld/zones/public.xml \
+         /etc/systemd/journald.conf.d/persistent.conf \
+    && test "$(stat -c %a /etc/systemd/system/dex.service)" = 644 \
+    && systemctl enable dex-storage-init.service dex.service \
+    && systemd-analyze verify /etc/systemd/system/dex-storage-init.service /etc/systemd/system/dex.service \
+    && firewall-offline-cmd --check-config \
+    && /usr/libexec/podman/quadlet --dryrun

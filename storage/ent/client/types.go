@@ -146,6 +146,7 @@ func toStorageRefreshToken(r *db.RefreshToken) storage.RefreshToken {
 		ConnectorData: *r.ConnectorData,
 		Scopes:        r.Scopes,
 		Nonce:         r.Nonce,
+		BindingKey:    r.BindingKey,
 		Claims: storage.Claims{
 			UserID:            r.ClaimsUserID,
 			Username:          r.ClaimsUsername,
@@ -178,6 +179,7 @@ func toStorageDeviceRequest(r *db.DeviceRequest) storage.DeviceRequest {
 		ClientSecret: r.ClientSecret,
 		Scopes:       r.Scopes,
 		Expiry:       r.Expiry,
+		BindingKey:   r.BindingKey,
 	}
 }
 

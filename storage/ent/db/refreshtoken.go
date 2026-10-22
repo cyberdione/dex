@@ -24,6 +24,8 @@ type RefreshToken struct {
 	Scopes []string `json:"scopes,omitempty"`
 	// Nonce holds the value of the "nonce" field.
 	Nonce string `json:"nonce,omitempty"`
+	// Holder-key binding recorded at mint, so a refreshed ID token keeps the device flow's binding_key claim.
+	BindingKey string `json:"binding_key,omitempty"`
 	// ClaimsUserID holds the value of the "claims_user_id" field.
 	ClaimsUserID string `json:"claims_user_id,omitempty"`
 	// ClaimsUsername holds the value of the "claims_username" field.
@@ -60,7 +62,7 @@ func (*RefreshToken) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case refreshtoken.FieldClaimsEmailVerified:
 			values[i] = new(sql.NullBool)
-		case refreshtoken.FieldID, refreshtoken.FieldClientID, refreshtoken.FieldNonce, refreshtoken.FieldClaimsUserID, refreshtoken.FieldClaimsUsername, refreshtoken.FieldClaimsEmail, refreshtoken.FieldClaimsPreferredUsername, refreshtoken.FieldConnectorID, refreshtoken.FieldToken, refreshtoken.FieldObsoleteToken:
+		case refreshtoken.FieldID, refreshtoken.FieldClientID, refreshtoken.FieldNonce, refreshtoken.FieldBindingKey, refreshtoken.FieldClaimsUserID, refreshtoken.FieldClaimsUsername, refreshtoken.FieldClaimsEmail, refreshtoken.FieldClaimsPreferredUsername, refreshtoken.FieldConnectorID, refreshtoken.FieldToken, refreshtoken.FieldObsoleteToken:
 			values[i] = new(sql.NullString)
 		case refreshtoken.FieldCreatedAt, refreshtoken.FieldLastUsed:
 			values[i] = new(sql.NullTime)
@@ -104,6 +106,12 @@ func (_m *RefreshToken) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field nonce", values[i])
 			} else if value.Valid {
 				_m.Nonce = value.String
+			}
+		case refreshtoken.FieldBindingKey:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field binding_key", values[i])
+			} else if value.Valid {
+				_m.BindingKey = value.String
 			}
 		case refreshtoken.FieldClaimsUserID:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -223,6 +231,9 @@ func (_m *RefreshToken) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("nonce=")
 	builder.WriteString(_m.Nonce)
+	builder.WriteString(", ")
+	builder.WriteString("binding_key=")
+	builder.WriteString(_m.BindingKey)
 	builder.WriteString(", ")
 	builder.WriteString("claims_user_id=")
 	builder.WriteString(_m.ClaimsUserID)

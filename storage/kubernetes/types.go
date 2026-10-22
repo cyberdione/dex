@@ -653,7 +653,8 @@ type RefreshToken struct {
 	Token         string `json:"token,omitempty"`
 	ObsoleteToken string `json:"obsoleteToken,omitempty"`
 
-	Nonce string `json:"nonce,omitempty"`
+	Nonce      string `json:"nonce,omitempty"`
+	BindingKey string `json:"binding_key,omitempty"`
 
 	Claims        Claims `json:"claims,omitempty"`
 	ConnectorID   string `json:"connectorID,omitempty"`
@@ -679,6 +680,7 @@ func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
 		ConnectorData: r.ConnectorData,
 		Scopes:        r.Scopes,
 		Nonce:         r.Nonce,
+		BindingKey:    r.BindingKey,
 		Claims:        toStorageClaims(r.Claims),
 	}
 }
@@ -702,6 +704,7 @@ func (cli *client) fromStorageRefreshToken(r storage.RefreshToken) RefreshToken 
 		ConnectorData: r.ConnectorData,
 		Scopes:        r.Scopes,
 		Nonce:         r.Nonce,
+		BindingKey:    r.BindingKey,
 		Claims:        fromStorageClaims(r.Claims),
 	}
 }
@@ -856,6 +859,10 @@ type DeviceRequest struct {
 	ClientSecret string    `json:"client_secret,omitempty"`
 	Scopes       []string  `json:"scopes,omitempty"`
 	Expiry       time.Time `json:"expiry"`
+
+	// BindingKey is the optional holder-key binding submitted with the device
+	// authorization request, echoed in the minted ID token's binding_key claim.
+	BindingKey string `json:"binding_key,omitempty"`
 }
 
 // DeviceRequestList is a list of DeviceRequests.
@@ -880,6 +887,7 @@ func (cli *client) fromStorageDeviceRequest(a storage.DeviceRequest) DeviceReque
 		ClientSecret: a.ClientSecret,
 		Scopes:       a.Scopes,
 		Expiry:       a.Expiry,
+		BindingKey:   a.BindingKey,
 	}
 	return req
 }
@@ -892,6 +900,7 @@ func toStorageDeviceRequest(req DeviceRequest) storage.DeviceRequest {
 		ClientSecret: req.ClientSecret,
 		Scopes:       req.Scopes,
 		Expiry:       req.Expiry,
+		BindingKey:   req.BindingKey,
 	}
 }
 

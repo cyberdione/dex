@@ -1,0 +1,87 @@
+#!/usr/bin/bash
+set -euo pipefail
+
+IMAGE="${DEX_IMAGE_REF:?missing DEX_IMAGE_REF in /etc/dex/deploy.env}"
+REGION="${AWS_REGION:?missing AWS_REGION in /etc/dex/deploy.env}"
+REGISTRY="${DEX_ECR_REGISTRY:?missing DEX_ECR_REGISTRY in /etc/dex/deploy.env}"
+SECRET_REF="{{resolve:secretsmanager:${DEX_SECRET_ARN:?missing DEX_SECRET_ARN in /etc/dex/deploy.env}:SecretString}}"
+AUTH_DIR="$(mktemp -d /run/dex-ecr.XXXXXX)"
+AUTH_FILE="$AUTH_DIR/auth.json"
+chmod 0700 "$AUTH_DIR"
+chown 1001:1001 "$AUTH_DIR"
+SECRET_DIR="$(mktemp -d /run/dex-secrets.XXXXXX)"
+chmod 0700 "$SECRET_DIR"
+chown 1001:1001 "$SECRET_DIR"
+RUNTIME_DIR="$(mktemp -d /run/dex-keys.XXXXXX)"
+chmod 0700 "$RUNTIME_DIR"
+chown 1001:1001 "$RUNTIME_DIR"
+
+cleanup() {
+  podman rm -f dex-secret-resolver 2>/dev/null || true
+  podman rm -f dex-runtime 2>/dev/null || true
+  rm -rf "$AUTH_DIR"
+  rm -rf "$SECRET_DIR"
+  rm -rf "$RUNTIME_DIR"
+}
+stop() {
+  cleanup
+  exit 143
+}
+trap cleanup EXIT
+trap stop INT TERM
+
+podman run --rm --network=host --read-only --cap-drop=all --security-opt=no-new-privileges \
+  --pids-limit=32 --memory=256m \
+  public.ecr.aws/aws-cli/aws-cli@sha256:bad3346a39098ab077be6ed58c7e1fe68321a4a844c7c740318100013e6c3581 \
+  ecr get-login-password --region "$REGION" \
+  | podman login --authfile "$AUTH_FILE" --username AWS --password-stdin "$REGISTRY"
+
+podman pull --authfile "$AUTH_FILE" "$IMAGE"
+podman network exists dex-egress || podman network create dex-egress
+
+while true; do
+  # The entrypoint makes private files read-only after writing. Remove the
+  # previous attempt's files so a later Dex restart can materialize them again.
+  rm -f "$RUNTIME_DIR/atproto-client-key" "$RUNTIME_DIR/atproto-state-key" "$RUNTIME_DIR/roster.yaml"
+  SECRET_PIPE="$SECRET_DIR/secret.pipe"
+  rm -f "$SECRET_PIPE"
+  mkfifo -m 0600 "$SECRET_PIPE"
+  chown 1001:1001 "$SECRET_PIPE"
+
+  set +e
+  # The host service runs under SELinux's unconfined_service_t domain and
+  # cannot open var_run_t FIFOs. Keep FIFO I/O inside the shared container
+  # label; this directory contains no ECR auth file or other host secrets.
+  podman run --rm -i --authfile "$AUTH_FILE" --name=dex-runtime \
+        --network=dex-egress --publish 127.0.0.1:5556:5556 --read-only \
+        --cap-drop=all --security-opt=no-new-privileges --pids-limit=256 \
+        --volume "$SECRET_DIR:/run/dex-runtime:z" \
+        --memory=1g --volume "$RUNTIME_DIR:/run/dex:Z" \
+        --volume /etc/dex/config.yaml:/etc/dex/config.yaml:ro,Z \
+        --volume /etc/dex/rds-ca-rsa2048-g1.pem:/etc/dex/rds-ca-rsa2048-g1.pem:ro,Z \
+        --volume /var/lib/dex/atproto:/var/lib/dex/atproto:Z \
+        --entrypoint /bin/sh "$IMAGE" \
+        -c 'exec /usr/local/bin/secret-entrypoint < /run/dex-runtime/secret.pipe' &
+  APP_PID=$!
+
+  podman run --rm --authfile "$AUTH_FILE" --name=dex-secret-resolver \
+    --network=host --read-only --volume "$SECRET_DIR:/run/dex-runtime:z" \
+    --cap-drop=all --security-opt=no-new-privileges --pids-limit=32 --memory=128m \
+    --entrypoint /usr/local/bin/asm-exec "$IMAGE" \
+    --stdin-reference "$SECRET_REF" -- /usr/local/bin/secret-pipe-writer /run/dex-runtime/secret.pipe &
+  RESOLVER_PID=$!
+  wait "$RESOLVER_PID"
+  RESOLVER_RESULT=$?
+  if [ "$RESOLVER_RESULT" -ne 0 ]; then
+    kill "$APP_PID" 2>/dev/null || true
+    wait "$APP_PID" 2>/dev/null || true
+    APP_RESULT="$RESOLVER_RESULT"
+  else
+    wait "$APP_PID"
+    APP_RESULT=$?
+  fi
+  rm -f "$SECRET_PIPE"
+  set -e
+  echo "Dex process exited (app=$APP_RESULT resolver=$RESOLVER_RESULT); restarting after 20 seconds."
+  sleep 20
+done

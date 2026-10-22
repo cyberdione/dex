@@ -1,0 +1,19 @@
+[Unit]
+Description=Cyberdione Dex OIDC issuer
+Wants=network-online.target
+After=network-online.target dex-storage-init.service
+Requires=dex-storage-init.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/dex/deploy.env
+ExecStart=/usr/local/sbin/run-dex
+Restart=always
+RestartSec=10
+TimeoutStartSec=0
+KillMode=control-group
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

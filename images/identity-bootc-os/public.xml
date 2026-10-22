@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<zone>
+  <short>Public</short>
+  <description>For use in public areas. Only selected incoming connections are accepted.</description>
+  <service name="ssh"/>
+  <service name="mdns"/>
+  <service name="dhcpv6-client"/>
+  <service name="http"/>
+  <service name="https"/>
+  <forward/>
+</zone>

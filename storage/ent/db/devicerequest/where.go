@@ -74,6 +74,11 @@ func ClientSecret(v string) predicate.DeviceRequest {
 	return predicate.DeviceRequest(sql.FieldEQ(FieldClientSecret, v))
 }
 
+// BindingKey applies equality check predicate on the "binding_key" field. It's identical to BindingKeyEQ.
+func BindingKey(v string) predicate.DeviceRequest {
+	return predicate.DeviceRequest(sql.FieldEQ(FieldBindingKey, v))
+}
+
 // Expiry applies equality check predicate on the "expiry" field. It's identical to ExpiryEQ.
 func Expiry(v time.Time) predicate.DeviceRequest {
 	return predicate.DeviceRequest(sql.FieldEQ(FieldExpiry, v))
@@ -347,6 +352,71 @@ func ScopesIsNil() predicate.DeviceRequest {
 // ScopesNotNil applies the NotNil predicate on the "scopes" field.
 func ScopesNotNil() predicate.DeviceRequest {
 	return predicate.DeviceRequest(sql.FieldNotNull(FieldScopes))
+}
+
+// BindingKeyEQ applies the EQ predicate on the "binding_key" field.
+func BindingKeyEQ(v string) predicate.DeviceRequest {
+	return predicate.DeviceRequest(sql.FieldEQ(FieldBindingKey, v))
+}
+
+// BindingKeyNEQ applies the NEQ predicate on the "binding_key" field.
+func BindingKeyNEQ(v string) predicate.DeviceRequest {
+	return predicate.DeviceRequest(sql.FieldNEQ(FieldBindingKey, v))
+}
+
+// BindingKeyIn applies the In predicate on the "binding_key" field.
+func BindingKeyIn(vs ...string) predicate.DeviceRequest {
+	return predicate.DeviceRequest(sql.FieldIn(FieldBindingKey, vs...))
+}
+
+// BindingKeyNotIn applies the NotIn predicate on the "binding_key" field.
+func BindingKeyNotIn(vs ...string) predicate.DeviceRequest {
+	return predicate.DeviceRequest(sql.FieldNotIn(FieldBindingKey, vs...))
+}
+
+// BindingKeyGT applies the GT predicate on the "binding_key" field.
+func BindingKeyGT(v string) predicate.DeviceRequest {
+	return predicate.DeviceRequest(sql.FieldGT(FieldBindingKey, v))
+}
+
+// BindingKeyGTE applies the GTE predicate on the "binding_key" field.
+func BindingKeyGTE(v string) predicate.DeviceRequest {
+	return predicate.DeviceRequest(sql.FieldGTE(FieldBindingKey, v))
+}
+
+// BindingKeyLT applies the LT predicate on the "binding_key" field.
+func BindingKeyLT(v string) predicate.DeviceRequest {
+	return predicate.DeviceRequest(sql.FieldLT(FieldBindingKey, v))
+}
+
+// BindingKeyLTE applies the LTE predicate on the "binding_key" field.
+func BindingKeyLTE(v string) predicate.DeviceRequest {
+	return predicate.DeviceRequest(sql.FieldLTE(FieldBindingKey, v))
+}
+
+// BindingKeyContains applies the Contains predicate on the "binding_key" field.
+func BindingKeyContains(v string) predicate.DeviceRequest {
+	return predicate.DeviceRequest(sql.FieldContains(FieldBindingKey, v))
+}
+
+// BindingKeyHasPrefix applies the HasPrefix predicate on the "binding_key" field.
+func BindingKeyHasPrefix(v string) predicate.DeviceRequest {
+	return predicate.DeviceRequest(sql.FieldHasPrefix(FieldBindingKey, v))
+}
+
+// BindingKeyHasSuffix applies the HasSuffix predicate on the "binding_key" field.
+func BindingKeyHasSuffix(v string) predicate.DeviceRequest {
+	return predicate.DeviceRequest(sql.FieldHasSuffix(FieldBindingKey, v))
+}
+
+// BindingKeyEqualFold applies the EqualFold predicate on the "binding_key" field.
+func BindingKeyEqualFold(v string) predicate.DeviceRequest {
+	return predicate.DeviceRequest(sql.FieldEqualFold(FieldBindingKey, v))
+}
+
+// BindingKeyContainsFold applies the ContainsFold predicate on the "binding_key" field.
+func BindingKeyContainsFold(v string) predicate.DeviceRequest {
+	return predicate.DeviceRequest(sql.FieldContainsFold(FieldBindingKey, v))
 }
 
 // ExpiryEQ applies the EQ predicate on the "expiry" field.
