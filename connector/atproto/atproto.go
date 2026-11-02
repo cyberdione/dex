@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 	"time"
 
@@ -35,7 +36,31 @@ const (
 	maxRosterBytes        = 1 << 20
 	defaultTransactionTTL = 5 * time.Minute
 	defaultCompletionTTL  = 30 * time.Second
+
+	maxRosterGroups    = 16
+	maxRosterGroupName = 64
 )
+
+// rosterGroupNameRe constrains operator-assigned authorization group names.
+var rosterGroupNameRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
+
+// validateRosterGroups fails closed on any malformed authorization data.
+func validateRosterGroups(groups []string) error {
+	if len(groups) > maxRosterGroups {
+		return fmt.Errorf("too many roster groups (max %d)", maxRosterGroups)
+	}
+	seen := make(map[string]struct{}, len(groups))
+	for _, g := range groups {
+		if len(g) < 2 || len(g) > maxRosterGroupName || !rosterGroupNameRe.MatchString(g) {
+			return fmt.Errorf("invalid roster group name")
+		}
+		if _, exists := seen[g]; exists {
+			return fmt.Errorf("duplicate roster group")
+		}
+		seen[g] = struct{}{}
+	}
+	return nil
+}
 
 // Config is the atproto connector configuration. PublicBaseURL is the
 // externally reachable Dex-prefixed connector route base.
@@ -429,7 +454,7 @@ func (c *atprotoConnector) oauthCallback(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "atproto handle is no longer verified", http.StatusForbidden)
 		return
 	}
-	identity := identityForVerifiedAccount(tx.ExpectedDID, tx.ExpectedHandle, c.config.AllowUnlistedAccounts)
+	identity := identityForVerifiedAccount(tx.ExpectedDID, tx.ExpectedHandle, current.Groups)
 	ticket, err := randomToken()
 	if err != nil || c.store.finishTransaction(tx.ID, "complete", transaction{TicketHash: digest(ticket), Identity: identity}) != nil {
 		http.Error(w, "atproto completion could not be stored", http.StatusInternalServerError)
@@ -449,10 +474,15 @@ func (c *atprotoConnector) oauthCallback(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, completion.String(), http.StatusSeeOther)
 }
 
-func identityForVerifiedAccount(did, handle string, allowUnlistedAccounts bool) connector.Identity {
+// identityForVerifiedAccount builds the connector identity for an
+// authenticated atproto account. Authorization groups come only from the
+// operator roster entry: open-account logins (AllowUnlistedAccounts resolve
+// to a roster-less entry) carry no groups. Identity remains the DID; the
+// handle is display data.
+func identityForVerifiedAccount(did, handle string, groups []string) connector.Identity {
 	identity := connector.Identity{UserID: did, Username: handle, PreferredUsername: handle, Email: "", EmailVerified: false}
-	if !allowUnlistedAccounts {
-		identity.Groups = []string{"workshop-attendee"}
+	if len(groups) > 0 {
+		identity.Groups = append([]string(nil), groups...)
 	}
 	return identity
 }
@@ -504,6 +534,11 @@ func (c *atprotoConnector) rosterEntry(account string) (rosterEntry, error) {
 	b, err := os.ReadFile(c.config.RosterFile)
 	if err != nil || len(b) > maxRosterBytes || yaml.Unmarshal(b, &roster) != nil || roster.Workshop != c.config.Workshop || roster.Version < 1 {
 		return rosterEntry{}, fmt.Errorf("could not read valid roster")
+	}
+	for i := range roster.Attendees {
+		if err := validateRosterGroups(roster.Attendees[i].Groups); err != nil {
+			return rosterEntry{}, fmt.Errorf("invalid roster authorization data: %w", err)
+		}
 	}
 	atid, err := syntax.ParseAtIdentifier(account)
 	if err != nil {

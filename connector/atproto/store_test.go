@@ -231,13 +231,24 @@ func TestOpenAccountEntryBindsVerifiedHandleAndDID(t *testing.T) {
 
 func TestOpenAccountClaimsDoNotGrantWorkshopMembership(t *testing.T) {
 	did, handle := "did:plc:abc", "alice.example"
-	open := identityForVerifiedAccount(did, handle, true)
+	// Open-account identities carry the verified DID and no authorization
+	// groups: relying parties make their own access decisions.
+	open := identityForVerifiedAccount(did, handle, nil)
 	if open.UserID != did || open.PreferredUsername != handle || len(open.Groups) != 0 {
-		t.Fatalf("open account must expose verified identity without workshop authorization: %#v", open)
+		t.Fatalf("open account must expose verified identity without authorization groups: %#v", open)
 	}
-	rostered := identityForVerifiedAccount(did, handle, false)
-	if len(rostered.Groups) != 1 || rostered.Groups[0] != "workshop-attendee" {
-		t.Fatalf("roster mode lost its workshop claim: %#v", rostered)
+	if open.Email != "" || open.EmailVerified {
+		t.Fatalf("connector must not invent email claims: %#v", open)
+	}
+	// Rostered identities carry exactly the operator-reviewed group list;
+	// the legacy hardcoded workshop-attendee claim is gone.
+	rostered := identityForVerifiedAccount(did, handle, []string{"mesh-operator"})
+	if len(rostered.Groups) != 1 || rostered.Groups[0] != "mesh-operator" {
+		t.Fatalf("roster groups not emitted: %#v", rostered.Groups)
+	}
+	ungrouped := identityForVerifiedAccount(did, handle, nil)
+	if len(ungrouped.Groups) != 0 {
+		t.Fatalf("rostered entry without groups must emit none: %#v", ungrouped.Groups)
 	}
 }
 

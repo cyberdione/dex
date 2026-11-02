@@ -32,6 +32,9 @@ type rosterEntry struct {
 	VMIDs       []string `json:"vmIds"`
 	UnixAccount string   `json:"unixAccount"`
 	ValidUntil  string   `json:"validUntil"`
+	// Groups are operator-assigned authorization group names emitted in the
+	// connector identity for this DID. Open-account logins never carry them.
+	Groups []string `json:"groups,omitempty"`
 }
 
 type transaction struct {
